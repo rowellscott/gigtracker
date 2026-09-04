@@ -3,30 +3,24 @@
 </div>
 
 <nav class="tabbar">
-  <button
-    type="button"
-    class="tab"
-    data-tab="log"
-    [class.active]="activeTab() === 'log'"
-    (click)="selectTab('log')"
-  >
-    Log
-  </button>
-  <button
-    type="button"
-    class="tab"
-    data-tab="summary"
-    [class.active]="activeTab() === 'summary'"
-    (click)="selectTab('summary')"
-  >
-    Summary
-  </button>
+  <button type="button" class="tab" data-tab="add"
+    [class.active]="activeTab() === 'add'" (click)="selectTab('add')">Add</button>
+  <button type="button" class="tab" data-tab="log"
+    [class.active]="activeTab() === 'log'" (click)="selectTab('log')">Log</button>
+  <button type="button" class="tab" data-tab="summary"
+    [class.active]="activeTab() === 'summary'" (click)="selectTab('summary')">Summary</button>
+  <button type="button" class="tab" data-tab="settings"
+    [class.active]="activeTab() === 'settings'" (click)="selectTab('settings')">Settings</button>
 </nav>
 
 <main class="content">
-  @if (activeTab() === 'log') {
+  @if (activeTab() === 'add') {
+    <app-add />
+  } @else if (activeTab() === 'log') {
     <app-log />
-  } @else {
+  } @else if (activeTab() === 'summary') {
     <app-summary />
+  } @else {
+    <app-settings />
   }
 </main>
