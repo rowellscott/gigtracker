@@ -10,16 +10,23 @@
   <label>Description
     <div class="desc-row">
       <input type="text" name="desc" [(ngModel)]="fm.desc" />
-      <button type="button" class="save-location" title="Save this as a location"
+      <button type="button" class="save-location" title="Save this description + address + miles as a location"
         [disabled]="!fm.desc.trim()" (click)="saveCurrentLocation()">★</button>
     </div>
   </label>
+  <label class="location-address-label">Location address (optional, saved with ★ above)
+    <input type="text" name="locationAddress" placeholder="For your own reference -- not looked up"
+      [(ngModel)]="locationAddress" />
+  </label>
+  <p class="note">Whatever's in Miles below when you tap ★ is saved with the location, so picking it later fills in both.</p>
 
   <div class="locations" *ngIf="savedLocations.length">
-    <span class="locations-label">Saved locations:</span>
+    <span class="locations-label">Saved locations (tap to fill description + miles):</span>
     <div class="location-chip" *ngFor="let loc of savedLocations">
-      <button type="button" class="location-pick" (click)="pickLocation(loc)">{{ loc }}</button>
-      <button type="button" class="location-remove" title="Remove" (click)="removeLocation(loc)">&times;</button>
+      <button type="button" class="location-pick" [title]="loc.address || ''" (click)="pickLocation(loc)">
+        {{ loc.name }}<span class="location-miles" *ngIf="loc.miles != null"> · {{ loc.miles }} mi</span>
+      </button>
+      <button type="button" class="location-remove" title="Remove" (click)="removeLocation(loc.name)">&times;</button>
     </div>
   </div>
 

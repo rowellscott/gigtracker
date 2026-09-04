@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GigDbService, GigRecord } from '../services/gig-db.service';
+import { GigDbService, GigRecord, SavedLocation } from '../services/gig-db.service';
 import { TaxCalcService, CalcInput, CalcResult } from '../services/tax-calc.service';
 
 export type GigType = 'income' | 'rehearsal' | 'expense';
@@ -78,7 +78,11 @@ export class AddComponent implements OnInit {
   fm: AddForm = blankForm();
   saving = false;
   error = '';
-  savedLocations: string[] = [];
+  savedLocations: SavedLocation[] = [];
+  /** Scratch input for saving a new location -- not part of the GigRecord
+   * being built; address is a reference label only (no geocoding, this app
+   * stays offline/no-account by design). */
+  locationAddress = '';
 
   async ngOnInit(): Promise<void> {
     this.savedLocations = await this.db.getSavedLocations();
@@ -88,14 +92,25 @@ export class AddComponent implements OnInit {
     this.fm.type = t;
   }
 
-  /** Fills the description from a previously-saved gig location. */
-  pickLocation(name: string): void {
-    this.fm.desc = name;
+  /** Fills the description AND miles from a previously-saved gig location --
+   * the actual auto-fill: mileage is looked up, not re-typed. */
+  pickLocation(loc: SavedLocation): void {
+    this.fm.desc = loc.name;
+    if (loc.miles != null) {
+      this.fm.miles = String(loc.miles);
+    }
   }
 
-  /** Saves the current description as a reusable location (deduped). */
+  /** Saves the current description + address + whatever's in Miles right
+   * now as a reusable location (upserts by name). */
   async saveCurrentLocation(): Promise<void> {
-    this.savedLocations = await this.db.addSavedLocation(this.fm.desc);
+    const miles = parseFloat(this.fm.miles);
+    this.savedLocations = await this.db.saveSavedLocation({
+      name: this.fm.desc,
+      address: this.locationAddress,
+      miles: isNaN(miles) ? undefined : miles,
+    });
+    this.locationAddress = '';
   }
 
   async removeLocation(name: string): Promise<void> {

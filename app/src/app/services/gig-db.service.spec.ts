@@ -40,41 +40,57 @@ describe('GigDbService', () => {
   describe('saved gig locations', () => {
     // Reuses the existing 'kv' store under a new key (no createObjectStore,
     // no DB_VERSION bump) -- deliberately, so an already-installed user's
-    // GigTrackerDB never needs a schema migration for this feature.
+    // GigTrackerDB never needs a schema migration for this feature. Each
+    // saved location carries a name, an optional address (reference only --
+    // no geocoding, this app stays offline/no-account by design), and an
+    // optional mileage that auto-fills the Add form's Miles field when picked.
 
     it('starts empty', async () => {
       expect(await db.getSavedLocations()).toEqual([]);
     });
 
-    it('adds a location, sorted', async () => {
-      await db.addSavedLocation('The Cellar');
-      await db.addSavedLocation('Ace Venue');
-      expect(await db.getSavedLocations()).toEqual(['Ace Venue', 'The Cellar']);
+    it('saves a location with address and mileage, sorted by name', async () => {
+      await db.saveSavedLocation({ name: 'The Cellar', address: '12 Main St', miles: 8.4 });
+      await db.saveSavedLocation({ name: 'Ace Venue', miles: 3 });
+      expect(await db.getSavedLocations()).toEqual([
+        { name: 'Ace Venue', miles: 3 },
+        { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
+      ]);
     });
 
-    it('does not add a duplicate', async () => {
-      await db.addSavedLocation('The Cellar');
-      await db.addSavedLocation('The Cellar');
-      expect(await db.getSavedLocations()).toEqual(['The Cellar']);
+    it('saving the same name again updates it in place rather than duplicating', async () => {
+      await db.saveSavedLocation({ name: 'The Cellar', miles: 8 });
+      await db.saveSavedLocation({ name: 'The Cellar', address: '12 Main St', miles: 8.4 });
+      expect(await db.getSavedLocations()).toEqual([
+        { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
+      ]);
     });
 
-    it('trims whitespace and ignores an empty/blank name', async () => {
-      await db.addSavedLocation('  The Cellar  ');
-      await db.addSavedLocation('   ');
-      expect(await db.getSavedLocations()).toEqual(['The Cellar']);
+    it('trims whitespace and ignores a blank name', async () => {
+      await db.saveSavedLocation({ name: '  The Cellar  ' });
+      await db.saveSavedLocation({ name: '   ' });
+      expect(await db.getSavedLocations()).toEqual([{ name: 'The Cellar' }]);
     });
 
     it('removes a location', async () => {
-      await db.addSavedLocation('The Cellar');
-      await db.addSavedLocation('Ace Venue');
+      await db.saveSavedLocation({ name: 'The Cellar' });
+      await db.saveSavedLocation({ name: 'Ace Venue' });
       await db.removeSavedLocation('The Cellar');
-      expect(await db.getSavedLocations()).toEqual(['Ace Venue']);
+      expect(await db.getSavedLocations()).toEqual([{ name: 'Ace Venue' }]);
     });
 
     it('removing a name that was never saved is a harmless no-op', async () => {
-      await db.addSavedLocation('The Cellar');
+      await db.saveSavedLocation({ name: 'The Cellar' });
       await db.removeSavedLocation('Never Saved');
-      expect(await db.getSavedLocations()).toEqual(['The Cellar']);
+      expect(await db.getSavedLocations()).toEqual([{ name: 'The Cellar' }]);
+    });
+
+    it('reads old plain-string entries (the previous shape) as name-only locations', async () => {
+      // Nothing shipped/deployed against the old string[] shape, but this
+      // costs nothing and matches how the rest of this file protects
+      // already-installed data from schema/shape changes.
+      await db.kvSet('savedGigLocations', ['Legacy Venue']);
+      expect(await db.getSavedLocations()).toEqual([{ name: 'Legacy Venue' }]);
     });
   });
 });

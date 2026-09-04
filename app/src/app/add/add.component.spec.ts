@@ -1,38 +1,42 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AddComponent, todayStr } from './add.component';
-import { GigDbService, GigRecord } from '../services/gig-db.service';
+import { GigDbService, GigRecord, SavedLocation } from '../services/gig-db.service';
 import { TaxCalcService } from '../services/tax-calc.service';
 
 describe('AddComponent', () => {
   let fixture: ComponentFixture<AddComponent>;
   let cmp: AddComponent;
   let saved: GigRecord[];
-  let locations: string[];
+  let locations: SavedLocation[];
   let dbStub: {
     recSave: (r: GigRecord) => Promise<void>;
-    getSavedLocations: () => Promise<string[]>;
-    addSavedLocation: (name: string) => Promise<string[]>;
-    removeSavedLocation: (name: string) => Promise<string[]>;
+    getSavedLocations: () => Promise<SavedLocation[]>;
+    saveSavedLocation: (loc: SavedLocation) => Promise<SavedLocation[]>;
+    removeSavedLocation: (name: string) => Promise<SavedLocation[]>;
   };
 
   beforeEach(async () => {
     saved = [];
-    locations = ['Ace Venue', 'The Cellar'];
+    locations = [{ name: 'Ace Venue', miles: 3 }, { name: 'The Cellar', address: '12 Main St', miles: 8.4 }];
     dbStub = {
       recSave: (r: GigRecord) => {
         saved.push(r);
         return Promise.resolve();
       },
       getSavedLocations: () => Promise.resolve(locations),
-      addSavedLocation: (name: string) => {
-        const trimmed = name.trim();
-        if (trimmed && !locations.includes(trimmed)) {
-          locations = [...locations, trimmed].sort((a, b) => a.localeCompare(b));
+      saveSavedLocation: (loc: SavedLocation) => {
+        const name = loc.name.trim();
+        if (name) {
+          const cleaned: SavedLocation = { name };
+          if (loc.address?.trim()) cleaned.address = loc.address.trim();
+          if (loc.miles != null && !isNaN(loc.miles)) cleaned.miles = loc.miles;
+          locations = [...locations.filter((l) => l.name !== name), cleaned]
+            .sort((a, b) => a.name.localeCompare(b.name));
         }
         return Promise.resolve(locations);
       },
       removeSavedLocation: (name: string) => {
-        locations = locations.filter((l) => l !== name);
+        locations = locations.filter((l) => l.name !== name);
         return Promise.resolve(locations);
       },
     };
@@ -115,33 +119,58 @@ describe('AddComponent', () => {
 
   describe('saved locations', () => {
     it('loads saved locations on init', () => {
-      expect(cmp.savedLocations).toEqual(['Ace Venue', 'The Cellar']);
+      expect(cmp.savedLocations).toEqual([
+        { name: 'Ace Venue', miles: 3 },
+        { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
+      ]);
     });
 
-    it('picking a saved location fills in the description', () => {
-      cmp.pickLocation('The Cellar');
+    it('picking a saved location fills in the description AND the miles', () => {
+      cmp.pickLocation({ name: 'The Cellar', address: '12 Main St', miles: 8.4 });
       expect(cmp.fm.desc).toBe('The Cellar');
+      expect(cmp.fm.miles).toBe('8.4');
     });
 
-    it('saves the current description as a location and dedupes', async () => {
-      cmp.fm.desc = 'New Venue';
-      await cmp.saveCurrentLocation();
-      expect(cmp.savedLocations).toEqual(['Ace Venue', 'New Venue', 'The Cellar']);
+    it('picking a location with no saved mileage leaves miles untouched', () => {
+      cmp.fm.miles = '25';
+      cmp.pickLocation({ name: 'No Mileage Venue' });
+      expect(cmp.fm.miles).toBe('25');
+    });
 
-      await cmp.saveCurrentLocation(); // same desc again -- must not duplicate
-      expect(cmp.savedLocations).toEqual(['Ace Venue', 'New Venue', 'The Cellar']);
+    it('saves the current description + address + miles as a location, and dedupes by name', async () => {
+      cmp.fm.desc = 'New Venue';
+      cmp.fm.miles = '12.5';
+      cmp.locationAddress = '99 Oak Ave';
+      await cmp.saveCurrentLocation();
+      expect(cmp.savedLocations).toEqual([
+        { name: 'Ace Venue', miles: 3 },
+        { name: 'New Venue', address: '99 Oak Ave', miles: 12.5 },
+        { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
+      ]);
+      expect(cmp.locationAddress).toBe(''); // scratch input clears after saving
+
+      await cmp.saveCurrentLocation(); // same desc again -- must update, not duplicate
+      expect(cmp.savedLocations.filter((l) => l.name === 'New Venue').length).toBe(1);
+    });
+
+    it('saving with no mileage entered omits miles rather than storing NaN/0', async () => {
+      cmp.fm.desc = 'Unknown Distance Gig';
+      cmp.fm.miles = '';
+      await cmp.saveCurrentLocation();
+      const loc = cmp.savedLocations.find((l) => l.name === 'Unknown Distance Gig');
+      expect(loc).toEqual({ name: 'Unknown Distance Gig' });
     });
 
     it('does not save a blank description as a location', async () => {
       cmp.fm.desc = '   ';
       await cmp.saveCurrentLocation();
-      expect(cmp.savedLocations).toEqual(['Ace Venue', 'The Cellar']);
+      expect(cmp.savedLocations.map((l) => l.name)).toEqual(['Ace Venue', 'The Cellar']);
     });
 
     it('removes a saved location without touching the current description', async () => {
       cmp.fm.desc = 'Club gig';
       await cmp.removeLocation('The Cellar');
-      expect(cmp.savedLocations).toEqual(['Ace Venue']);
+      expect(cmp.savedLocations).toEqual([{ name: 'Ace Venue', miles: 3 }]);
       expect(cmp.fm.desc).toBe('Club gig');
     });
   });

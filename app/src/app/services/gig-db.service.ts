@@ -42,6 +42,14 @@ export interface TaxSettings {
   mpg: number;
 }
 
+/** A saved gig location -- see getSavedLocations() below for why there's
+ * no geocoding: address is a reference label, miles is a stored number. */
+export interface SavedLocation {
+  name: string;
+  address?: string;
+  miles?: number;
+}
+
 const DB_NAME = 'GigTrackerDB';
 const DB_VERSION = 1;
 const RECS_STORE = 'recs';
@@ -114,30 +122,47 @@ export class GigDbService {
   }
 
   /**
-   * Saved gig locations (venue/gig names the user reuses often), for
-   * quick-select in the Add form. Stored under the existing 'kv' store
-   * rather than a new object store, deliberately -- adding a real store
-   * needs a DB_VERSION bump and an onupgradeneeded migration path for
-   * every already-installed user; a kv entry needs neither.
+   * Saved gig locations, for quick-select in the Add form: pick one and it
+   * fills in the description AND the mileage. Deliberately no geocoding/
+   * maps API -- this app is offline, no-account by design (manifest.json,
+   * SETUP.md), so `address` is a reference label the user reads, not
+   * something the app resolves; `miles` is a number the user enters once
+   * (from their own knowledge of the round trip) and gets back every time
+   * they pick that location again.
+   *
+   * Stored under the existing 'kv' store rather than a new object store,
+   * deliberately -- a real store needs a DB_VERSION bump and an
+   * onupgradeneeded migration path for every already-installed user; a kv
+   * entry needs neither.
    */
   private static readonly SAVED_LOCATIONS_KEY = 'savedGigLocations';
 
-  async getSavedLocations(): Promise<string[]> {
-    return (await this.kvGet<string[]>(GigDbService.SAVED_LOCATIONS_KEY)) ?? [];
+  async getSavedLocations(): Promise<SavedLocation[]> {
+    const raw = (await this.kvGet<unknown[]>(GigDbService.SAVED_LOCATIONS_KEY)) ?? [];
+    // A location saved by the earlier name-only version of this feature is
+    // a plain string, not yet {name, address?, miles?} -- read it as a
+    // name-only location instead of losing it.
+    return raw
+      .map((entry) => (typeof entry === 'string' ? { name: entry } : (entry as SavedLocation)))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async addSavedLocation(name: string): Promise<string[]> {
-    const trimmed = name.trim();
+  async saveSavedLocation(loc: SavedLocation): Promise<SavedLocation[]> {
+    const name = loc.name.trim();
     const current = await this.getSavedLocations();
-    if (!trimmed || current.includes(trimmed)) return current;
-    const updated = [...current, trimmed].sort((a, b) => a.localeCompare(b));
+    if (!name) return current;
+    const cleaned: SavedLocation = { name };
+    if (loc.address?.trim()) cleaned.address = loc.address.trim();
+    if (loc.miles != null && !isNaN(loc.miles)) cleaned.miles = loc.miles;
+    const updated = [...current.filter((l) => l.name !== name), cleaned]
+      .sort((a, b) => a.name.localeCompare(b.name));
     await this.kvSet(GigDbService.SAVED_LOCATIONS_KEY, updated);
     return updated;
   }
 
-  async removeSavedLocation(name: string): Promise<string[]> {
+  async removeSavedLocation(name: string): Promise<SavedLocation[]> {
     const current = await this.getSavedLocations();
-    const updated = current.filter((loc) => loc !== name);
+    const updated = current.filter((loc) => loc.name !== name);
     await this.kvSet(GigDbService.SAVED_LOCATIONS_KEY, updated);
     return updated;
   }
