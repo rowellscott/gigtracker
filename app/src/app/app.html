@@ -1,0 +1,31 @@
+<div class="topbar">
+  <span class="topbar-title">🎸 GigTracker 2026</span>
+</div>
+
+<main class="content">
+  <div class="step-note">
+    Step 1 scaffold — app shell + data layer only. Add/Log/Summary screens land in step 2.
+  </div>
+
+  @if (recordsResource.isLoading()) {
+    <p>Loading your existing records…</p>
+  } @else if (recordsResource.error()) {
+    <p class="error">Could not open GigTrackerDB: {{ recordsResource.error() }}</p>
+  } @else {
+    <div class="readout">
+      <div class="stat">
+        <div class="stat-label">Records found</div>
+        <div class="stat-value">{{ recordCount() }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total income (all time)</div>
+        <div class="stat-value">${{ totalIncome().toFixed(2) }}</div>
+      </div>
+    </div>
+    <p class="note">
+      This reads the same on-device 'GigTrackerDB' database the current app writes to.
+      A non-zero count above (on the device that already has real records) confirms the
+      new data layer is reading real history, not a fresh database.
+    </p>
+  }
+</main>
