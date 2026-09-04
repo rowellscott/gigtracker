@@ -1,0 +1,20 @@
+<div class="log">
+  <div class="filters">
+    <button type="button" [class.active]="filter() === 'all'" (click)="setFilter('all')">All</button>
+    <button type="button" [class.active]="filter() === 'income'" (click)="setFilter('income')">Income</button>
+    <button type="button" [class.active]="filter() === 'rehearsal'" (click)="setFilter('rehearsal')">Rehearsal</button>
+    <button type="button" [class.active]="filter() === 'expense'" (click)="setFilter('expense')">Expense</button>
+  </div>
+
+  <ul class="rows" *ngIf="filteredRecords().length; else empty">
+    <li class="row" *ngFor="let r of filteredRecords()">
+      <span class="desc">{{ r.desc }}</span>
+      <span class="date">{{ formatDate(r.date) }}</span>
+      <span class="amount" [ngClass]="amountClass(r)">{{ amountLabel(r) }}</span>
+    </li>
+  </ul>
+
+  <ng-template #empty>
+    <p class="empty-state">No records to show.</p>
+  </ng-template>
+</div>

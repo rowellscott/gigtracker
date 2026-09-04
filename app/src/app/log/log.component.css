@@ -1,0 +1,9 @@
+.log { display: flex; flex-direction: column; gap: 0.75rem; }
+.filters { display: flex; gap: 0.5rem; }
+.filters button.active { font-weight: bold; text-decoration: underline; }
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.row { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+.amount-income { color: green; }
+.amount-expense { color: red; }
+.amount-rehearsal { color: inherit; }
+.empty-state { color: #666; font-style: italic; }
