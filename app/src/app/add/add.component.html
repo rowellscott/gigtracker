@@ -1,0 +1,57 @@
+<div class="add">
+  <div class="types">
+    <button type="button" class="type" [class.active]="fm.type === 'income'" (click)="setType('income')">Income Gig</button>
+    <button type="button" class="type" [class.active]="fm.type === 'rehearsal'" (click)="setType('rehearsal')">Rehearsal</button>
+    <button type="button" class="type" [class.active]="fm.type === 'expense'" (click)="setType('expense')">Expense Only</button>
+  </div>
+
+  <label>Date<input type="date" name="date" [(ngModel)]="fm.date" /></label>
+  <label>Description<input type="text" name="desc" [(ngModel)]="fm.desc" /></label>
+
+  <ng-container *ngIf="fm.type === 'income'">
+    <label>Amount<input type="number" name="amount" [(ngModel)]="fm.amount" /></label>
+    <label>Pay Method<input type="text" name="payMethod" [(ngModel)]="fm.payMethod" /></label>
+  </ng-container>
+
+  <label>Start<input type="time" name="start" [(ngModel)]="fm.start" /></label>
+  <label>End<input type="time" name="end" [(ngModel)]="fm.end" /></label>
+  <label>Miles<input type="number" name="miles" [(ngModel)]="fm.miles" /></label>
+  <label>Gas Price<input type="number" name="gasPrice" [(ngModel)]="fm.gasPrice" /></label>
+
+  <label class="tog"><input type="checkbox" name="hasToll" [(ngModel)]="fm.hasToll" /> Tolls</label>
+  <label *ngIf="fm.hasToll">Toll Cost<input type="number" name="tollCost" [(ngModel)]="fm.tollCost" /></label>
+
+  <label class="tog"><input type="checkbox" name="hasMeal" [(ngModel)]="fm.hasMeal" /> Meal</label>
+  <label *ngIf="fm.hasMeal">Meal Cost<input type="number" name="mealCost" [(ngModel)]="fm.mealCost" /></label>
+
+  <ng-container *ngIf="fm.type === 'rehearsal'">
+    <label class="tog"><input type="checkbox" name="hasRoom" [(ngModel)]="fm.hasRoom" /> Room</label>
+    <label *ngIf="fm.hasRoom">Room Cost<input type="number" name="roomCost" [(ngModel)]="fm.roomCost" /></label>
+  </ng-container>
+
+  <label class="tog"><input type="checkbox" name="hasOther" [(ngModel)]="fm.hasOther" /> Other</label>
+  <ng-container *ngIf="fm.hasOther">
+    <label>Other Description<input type="text" name="otherDesc" [(ngModel)]="fm.otherDesc" /></label>
+    <label>Other Cost<input type="number" name="otherCost" [(ngModel)]="fm.otherCost" /></label>
+  </ng-container>
+
+  <ng-container *ngIf="fm.type === 'income'">
+    <label class="tog"><input type="checkbox" name="hasTips" [(ngModel)]="fm.hasTips" /> Tips</label>
+    <ng-container *ngIf="fm.hasTips">
+      <label>Tips Amount<input type="number" name="tipsAmount" [(ngModel)]="fm.tipsAmount" /></label>
+      <label class="tog"><input type="checkbox" name="tipsInTax" [(ngModel)]="fm.tipsInTax" /> Include tips in taxable income</label>
+    </ng-container>
+  </ng-container>
+
+  <label>Notes<textarea name="notes" [(ngModel)]="fm.notes"></textarea></label>
+
+  <div class="preview">
+    <div *ngIf="fm.type === 'income'" class="row"><span>Total Income</span><span class="total-income">{{ calc.totalIncome | number: '1.2-2' }}</span></div>
+    <div class="row"><span>Total Costs</span><span class="total-costs">{{ calc.trueCosts | number: '1.2-2' }}</span></div>
+    <div *ngIf="fm.type === 'income'" class="row"><span>Net After All</span><span class="net">{{ calc.netAfterAll | number: '1.2-2' }}</span></div>
+    <div class="row"><span>Hours</span><span>{{ calc.hours | number: '1.2-2' }}</span></div>
+  </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <button type="button" class="save" [disabled]="!canSave" (click)="save()">Save</button>
+</div>

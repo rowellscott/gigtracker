@@ -1,0 +1,55 @@
+.add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+}
+.types {
+  display: flex;
+  gap: 0.5rem;
+}
+.type {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 6px;
+}
+.type.active {
+  background: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+label.tog {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+.preview {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+.preview .row {
+  display: flex;
+  justify-content: space-between;
+}
+.error {
+  color: #c00;
+}
+.save {
+  padding: 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  background: #1976d2;
+  color: #fff;
+}
+.save[disabled] {
+  opacity: 0.5;
+}
