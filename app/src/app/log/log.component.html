@@ -6,13 +6,19 @@
     <button type="button" [class.active]="filter() === 'expense'" (click)="setFilter('expense')">Expense</button>
   </div>
 
-  <ul class="rows" *ngIf="filteredRecords().length; else empty">
-    <li class="row" *ngFor="let r of filteredRecords()">
+  <ul class="rows" *ngIf="pagedRecords().length; else empty">
+    <li class="row" *ngFor="let r of pagedRecords()">
       <span class="desc">{{ r.desc }}</span>
       <span class="date">{{ formatDate(r.date) }}</span>
       <span class="amount" [ngClass]="amountClass(r)">{{ amountLabel(r) }}</span>
     </li>
   </ul>
+
+  <div class="pager" *ngIf="filteredRecords().length">
+    <button type="button" (click)="prevPage()" [disabled]="page() <= 1">Prev</button>
+    <span class="pager-label">Page {{ page() }} of {{ totalPages() }}</span>
+    <button type="button" (click)="nextPage()" [disabled]="page() >= totalPages()">Next</button>
+  </div>
 
   <ng-template #empty>
     <p class="empty-state">No records to show.</p>

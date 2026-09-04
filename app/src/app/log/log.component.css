@@ -7,3 +7,6 @@
 .amount-expense { color: red; }
 .amount-rehearsal { color: inherit; }
 .empty-state { color: #666; font-style: italic; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; padding-top: 0.5rem; }
+.pager button:disabled { opacity: 0.4; cursor: default; }
+.pager-label { font-size: 0.85rem; color: #4b5563; }

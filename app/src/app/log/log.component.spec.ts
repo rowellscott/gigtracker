@@ -65,3 +65,62 @@ describe('LogComponent', () => {
     expect(component.filteredRecords().length).toBe(0);
   });
 });
+
+describe('LogComponent pagination', () => {
+  let component: LogComponent;
+
+  function manyRecords(n: number): GigRecord[] {
+    return Array.from({ length: n }, (_, i) =>
+      rec({ id: String(i), date: `2026-01-${String((i % 28) + 1).padStart(2, '0')}`, type: 'income', amount: 10 })
+    );
+  }
+
+  async function setup(count: number): Promise<void> {
+    TestBed.configureTestingModule({ imports: [LogComponent] });
+    const fixture = TestBed.createComponent(LogComponent);
+    component = fixture.componentInstance;
+    TestBed.inject(GigDbService).recsGetAll = async () => manyRecords(count);
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  it('shows at most pageSize records per page', async () => {
+    await setup(45);
+    expect(component.pagedRecords().length).toBe(component.pageSize);
+    expect(component.totalPages()).toBe(3); // 45 / 20 -> 3 pages
+  });
+
+  it('a short list needs no pagination but still shows everything on page 1', async () => {
+    await setup(5);
+    expect(component.pagedRecords().length).toBe(5);
+    expect(component.totalPages()).toBe(1);
+  });
+
+  it('nextPage/prevPage move one page and clamp at the ends', async () => {
+    await setup(45);
+    expect(component.page()).toBe(1);
+
+    component.prevPage(); // already at page 1 -- must not go below it
+    expect(component.page()).toBe(1);
+
+    component.nextPage();
+    expect(component.page()).toBe(2);
+    expect(component.pagedRecords().length).toBe(20);
+
+    component.nextPage();
+    expect(component.page()).toBe(3);
+    expect(component.pagedRecords().length).toBe(5); // last page, partial
+
+    component.nextPage(); // already at the last page -- must not go past it
+    expect(component.page()).toBe(3);
+  });
+
+  it('changing the filter resets to page 1', async () => {
+    await setup(45);
+    component.nextPage();
+    expect(component.page()).toBe(2);
+
+    component.setFilter('income');
+    expect(component.page()).toBe(1);
+  });
+});

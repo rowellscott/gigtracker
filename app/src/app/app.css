@@ -15,6 +15,9 @@
   display: flex;
   border-bottom: 1px solid #d1d5db;
   background: #f9fafb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .tab {
