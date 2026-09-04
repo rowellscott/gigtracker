@@ -1,0 +1,47 @@
+<section class="settings">
+  <h2>Settings</h2>
+
+  <div class="stats">
+    <p>Last backup: <strong>{{ lastBackupAt() }}</strong></p>
+    <p>Records: <strong>{{ recordCount() }}</strong></p>
+  </div>
+
+  <h3>Tax rates</h3>
+  <div class="grid">
+    <label>
+      Federal rate (%)
+      <input type="number" step="any" [(ngModel)]="cfg.federalRate" />
+    </label>
+    <label>
+      State rate (%)
+      <input type="number" step="any" [(ngModel)]="cfg.stateRate" />
+    </label>
+    <label>
+      IRS rate ($/mi)
+      <input type="number" step="any" [(ngModel)]="cfg.irsRate" />
+    </label>
+    <label>
+      True cost rate ($/mi)
+      <input type="number" step="any" [(ngModel)]="cfg.trueCostRate" />
+    </label>
+    <label>
+      MPG
+      <input type="number" step="any" [(ngModel)]="cfg.mpg" />
+    </label>
+  </div>
+  <button type="button" (click)="saveSettings()">Save settings</button>
+
+  <h3>Backup</h3>
+  <div class="actions">
+    <button type="button" (click)="exportCsv()">Export CSV</button>
+    <button type="button" (click)="exportJson()">Export JSON backup</button>
+    <label class="import">
+      Import JSON
+      <input type="file" accept="application/json,.json" (change)="onFileSelected($event)" />
+    </label>
+  </div>
+
+  @if (status()) {
+    <p class="status">{{ status() }}</p>
+  }
+</section>
