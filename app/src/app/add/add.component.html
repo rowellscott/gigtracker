@@ -6,7 +6,22 @@
   </div>
 
   <label>Date<input type="date" name="date" [(ngModel)]="fm.date" /></label>
-  <label>Description<input type="text" name="desc" [(ngModel)]="fm.desc" /></label>
+
+  <label>Description
+    <div class="desc-row">
+      <input type="text" name="desc" [(ngModel)]="fm.desc" />
+      <button type="button" class="save-location" title="Save this as a location"
+        [disabled]="!fm.desc.trim()" (click)="saveCurrentLocation()">★</button>
+    </div>
+  </label>
+
+  <div class="locations" *ngIf="savedLocations.length">
+    <span class="locations-label">Saved locations:</span>
+    <div class="location-chip" *ngFor="let loc of savedLocations">
+      <button type="button" class="location-pick" (click)="pickLocation(loc)">{{ loc }}</button>
+      <button type="button" class="location-remove" title="Remove" (click)="removeLocation(loc)">&times;</button>
+    </div>
+  </div>
 
   <ng-container *ngIf="fm.type === 'income'">
     <label>Amount<input type="number" name="amount" [(ngModel)]="fm.amount" /></label>

@@ -36,4 +36,45 @@ describe('GigDbService', () => {
     await db.kvSet('appSettings', { federalRate: 22 });
     expect(await db.kvGet('appSettings')).toEqual({ federalRate: 22 });
   });
+
+  describe('saved gig locations', () => {
+    // Reuses the existing 'kv' store under a new key (no createObjectStore,
+    // no DB_VERSION bump) -- deliberately, so an already-installed user's
+    // GigTrackerDB never needs a schema migration for this feature.
+
+    it('starts empty', async () => {
+      expect(await db.getSavedLocations()).toEqual([]);
+    });
+
+    it('adds a location, sorted', async () => {
+      await db.addSavedLocation('The Cellar');
+      await db.addSavedLocation('Ace Venue');
+      expect(await db.getSavedLocations()).toEqual(['Ace Venue', 'The Cellar']);
+    });
+
+    it('does not add a duplicate', async () => {
+      await db.addSavedLocation('The Cellar');
+      await db.addSavedLocation('The Cellar');
+      expect(await db.getSavedLocations()).toEqual(['The Cellar']);
+    });
+
+    it('trims whitespace and ignores an empty/blank name', async () => {
+      await db.addSavedLocation('  The Cellar  ');
+      await db.addSavedLocation('   ');
+      expect(await db.getSavedLocations()).toEqual(['The Cellar']);
+    });
+
+    it('removes a location', async () => {
+      await db.addSavedLocation('The Cellar');
+      await db.addSavedLocation('Ace Venue');
+      await db.removeSavedLocation('The Cellar');
+      expect(await db.getSavedLocations()).toEqual(['Ace Venue']);
+    });
+
+    it('removing a name that was never saved is a harmless no-op', async () => {
+      await db.addSavedLocation('The Cellar');
+      await db.removeSavedLocation('Never Saved');
+      expect(await db.getSavedLocations()).toEqual(['The Cellar']);
+    });
+  });
 });

@@ -113,6 +113,35 @@ export class GigDbService {
     await this.put(KV_STORE, { k: key, v: value });
   }
 
+  /**
+   * Saved gig locations (venue/gig names the user reuses often), for
+   * quick-select in the Add form. Stored under the existing 'kv' store
+   * rather than a new object store, deliberately -- adding a real store
+   * needs a DB_VERSION bump and an onupgradeneeded migration path for
+   * every already-installed user; a kv entry needs neither.
+   */
+  private static readonly SAVED_LOCATIONS_KEY = 'savedGigLocations';
+
+  async getSavedLocations(): Promise<string[]> {
+    return (await this.kvGet<string[]>(GigDbService.SAVED_LOCATIONS_KEY)) ?? [];
+  }
+
+  async addSavedLocation(name: string): Promise<string[]> {
+    const trimmed = name.trim();
+    const current = await this.getSavedLocations();
+    if (!trimmed || current.includes(trimmed)) return current;
+    const updated = [...current, trimmed].sort((a, b) => a.localeCompare(b));
+    await this.kvSet(GigDbService.SAVED_LOCATIONS_KEY, updated);
+    return updated;
+  }
+
+  async removeSavedLocation(name: string): Promise<string[]> {
+    const current = await this.getSavedLocations();
+    const updated = current.filter((loc) => loc !== name);
+    await this.kvSet(GigDbService.SAVED_LOCATIONS_KEY, updated);
+    return updated;
+  }
+
   /** All non-deleted records, newest date first -- matches recsGetAll() in the legacy app. */
   async recsGetAll(): Promise<GigRecord[]> {
     const all = await this.getAll<GigRecord>(RECS_STORE);

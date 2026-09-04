@@ -7,14 +7,33 @@ describe('AddComponent', () => {
   let fixture: ComponentFixture<AddComponent>;
   let cmp: AddComponent;
   let saved: GigRecord[];
-  let dbStub: { recSave: (r: GigRecord) => Promise<void> };
+  let locations: string[];
+  let dbStub: {
+    recSave: (r: GigRecord) => Promise<void>;
+    getSavedLocations: () => Promise<string[]>;
+    addSavedLocation: (name: string) => Promise<string[]>;
+    removeSavedLocation: (name: string) => Promise<string[]>;
+  };
 
   beforeEach(async () => {
     saved = [];
+    locations = ['Ace Venue', 'The Cellar'];
     dbStub = {
       recSave: (r: GigRecord) => {
         saved.push(r);
         return Promise.resolve();
+      },
+      getSavedLocations: () => Promise.resolve(locations),
+      addSavedLocation: (name: string) => {
+        const trimmed = name.trim();
+        if (trimmed && !locations.includes(trimmed)) {
+          locations = [...locations, trimmed].sort((a, b) => a.localeCompare(b));
+        }
+        return Promise.resolve(locations);
+      },
+      removeSavedLocation: (name: string) => {
+        locations = locations.filter((l) => l !== name);
+        return Promise.resolve(locations);
       },
     };
 
@@ -26,6 +45,7 @@ describe('AddComponent', () => {
     fixture = TestBed.createComponent(AddComponent);
     cmp = fixture.componentInstance;
     fixture.detectChanges();
+    await fixture.whenStable();
   });
 
   it('creates with income type and today\'s date', () => {
@@ -91,5 +111,38 @@ describe('AddComponent', () => {
     expect(cmp.fm.miles).toBe('');
     expect(cmp.fm.type).toBe('income');
     expect(cmp.fm.date).toBe(todayStr());
+  });
+
+  describe('saved locations', () => {
+    it('loads saved locations on init', () => {
+      expect(cmp.savedLocations).toEqual(['Ace Venue', 'The Cellar']);
+    });
+
+    it('picking a saved location fills in the description', () => {
+      cmp.pickLocation('The Cellar');
+      expect(cmp.fm.desc).toBe('The Cellar');
+    });
+
+    it('saves the current description as a location and dedupes', async () => {
+      cmp.fm.desc = 'New Venue';
+      await cmp.saveCurrentLocation();
+      expect(cmp.savedLocations).toEqual(['Ace Venue', 'New Venue', 'The Cellar']);
+
+      await cmp.saveCurrentLocation(); // same desc again -- must not duplicate
+      expect(cmp.savedLocations).toEqual(['Ace Venue', 'New Venue', 'The Cellar']);
+    });
+
+    it('does not save a blank description as a location', async () => {
+      cmp.fm.desc = '   ';
+      await cmp.saveCurrentLocation();
+      expect(cmp.savedLocations).toEqual(['Ace Venue', 'The Cellar']);
+    });
+
+    it('removes a saved location without touching the current description', async () => {
+      cmp.fm.desc = 'Club gig';
+      await cmp.removeLocation('The Cellar');
+      expect(cmp.savedLocations).toEqual(['Ace Venue']);
+      expect(cmp.fm.desc).toBe('Club gig');
+    });
   });
 });

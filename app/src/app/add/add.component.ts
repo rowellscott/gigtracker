@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GigDbService, GigRecord } from '../services/gig-db.service';
@@ -71,16 +71,35 @@ export function blankForm(): AddForm {
   templateUrl: './add.component.html',
   styleUrls: ['./add.component.css'],
 })
-export class AddComponent {
+export class AddComponent implements OnInit {
   private db = inject(GigDbService);
   private tax = inject(TaxCalcService);
 
   fm: AddForm = blankForm();
   saving = false;
   error = '';
+  savedLocations: string[] = [];
+
+  async ngOnInit(): Promise<void> {
+    this.savedLocations = await this.db.getSavedLocations();
+  }
 
   setType(t: GigType): void {
     this.fm.type = t;
+  }
+
+  /** Fills the description from a previously-saved gig location. */
+  pickLocation(name: string): void {
+    this.fm.desc = name;
+  }
+
+  /** Saves the current description as a reusable location (deduped). */
+  async saveCurrentLocation(): Promise<void> {
+    this.savedLocations = await this.db.addSavedLocation(this.fm.desc);
+  }
+
+  async removeLocation(name: string): Promise<void> {
+    this.savedLocations = await this.db.removeSavedLocation(name);
   }
 
   get calcInput(): CalcInput {
