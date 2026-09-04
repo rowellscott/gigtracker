@@ -1,35 +1,51 @@
 import 'fake-indexeddb/auto';
-import { IDBFactory } from 'fake-indexeddb';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from './app';
 
 describe('App', () => {
+  let fixture: ComponentFixture<App>;
+
   beforeEach(async () => {
-    globalThis.indexedDB = new IDBFactory();
     await TestBed.configureTestingModule({
       imports: [App],
     }).compileComponents();
-  });
 
-  it('should create the app', () => {
-    const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
-  });
-
-  it('renders the topbar title', () => {
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.topbar-title')?.textContent).toContain('GigTracker');
-  });
-
-  it('shows a zero record count against an empty database', async () => {
-    const fixture = TestBed.createComponent(App);
+    fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.stat-value')?.textContent?.trim()).toBe('0');
+  });
+
+  const el = () => fixture.nativeElement as HTMLElement;
+
+  it('creates the app', () => {
+    expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('keeps the topbar title', () => {
+    expect(el().textContent).toContain('GigTracker 2026');
+  });
+
+  it('shows the Log tab by default', () => {
+    expect(el().querySelector('app-log')).not.toBeNull();
+    expect(el().querySelector('app-summary')).toBeNull();
+
+    const logTab = el().querySelector('[data-tab="log"]') as HTMLElement;
+    expect(logTab.classList.contains('active')).toBe(true);
+  });
+
+  it('swaps to the Summary tab on click', async () => {
+    const summaryTab = el().querySelector('[data-tab="summary"]') as HTMLButtonElement;
+    summaryTab.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(el().querySelector('app-summary')).not.toBeNull();
+    expect(el().querySelector('app-log')).toBeNull();
+    expect(
+      (el().querySelector('[data-tab="summary"]') as HTMLElement).classList.contains('active'),
+    ).toBe(true);
   });
 });

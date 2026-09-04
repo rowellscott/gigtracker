@@ -1,30 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, resource } from '@angular/core';
-import { GigDbService } from './services/gig-db.service';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { LogComponent } from './log/log.component';
+import { SummaryComponent } from './summary/summary.component';
 
-/**
- * Step 1 of the rewrite (see the plan in chat): app shell only, no Add/Log/
- * Summary screens yet. This component's one job is to prove GigDbService
- * reads the real, already-installed 'GigTrackerDB' -- same records the
- * legacy index.html app has been writing -- not a fresh/empty database.
- */
+type Tab = 'log' | 'summary';
+
 @Component({
   selector: 'app-root',
-  imports: [],
+  imports: [LogComponent, SummaryComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  private readonly db = inject(GigDbService);
+  protected readonly activeTab = signal<Tab>('log');
 
-  protected readonly recordsResource = resource({
-    loader: () => this.db.recsGetAll(),
-  });
-
-  protected readonly recordCount = computed(() => this.recordsResource.value()?.length ?? 0);
-  protected readonly totalIncome = computed(() =>
-    (this.recordsResource.value() ?? [])
-      .filter((r) => r.type === 'income')
-      .reduce((sum, r) => sum + (r.amount || 0) + (r.tips || 0), 0),
-  );
+  protected selectTab(tab: Tab): void {
+    this.activeTab.set(tab);
+  }
 }
