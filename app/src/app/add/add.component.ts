@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GigDbService, GigRecord, SavedLocation, TaxSettings } from '../services/gig-db.service';
 import { TaxCalcService, CalcInput, CalcResult } from '../services/tax-calc.service';
@@ -108,7 +107,7 @@ const plusMinus = (n: number): string => (n >= 0 ? '+$' : '-$') + Math.abs(n).to
 
 @Component({
   selector: 'app-add',
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './add.component.html',
   styleUrl: './add.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

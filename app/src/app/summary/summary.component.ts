@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { GigDbService, GigRecord, TaxSettings } from '../services/gig-db.service';
 
 const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
@@ -8,7 +8,7 @@ const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
 @Component({
   selector: 'app-summary',
   standalone: true,
-  imports: [CommonModule],
+  imports: [DecimalPipe],
   templateUrl: './summary.component.html',
   styleUrl: './summary.component.css',
 })

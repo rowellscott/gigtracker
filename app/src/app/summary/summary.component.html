@@ -2,15 +2,15 @@
   <div class="hero">
     <div class="hero-lbl">{{ year }} at a glance</div>
     <div class="wf-row"><span class="wf-lbl">Base pay</span><span class="wf-amt val-g">+{{ money(grossIncome()) }}</span></div>
-    <ng-container *ngIf="totalTips() > 0">
+    @if (totalTips() > 0) {
       <div class="wf-row"><span class="wf-lbl">Tips</span><span class="wf-amt val-g">+{{ money(totalTips()) }}</span></div>
       <div class="wf-row"><span class="wf-lbl">Total income</span><span class="wf-amt val-g">+{{ money(totalIncome()) }}</span></div>
-    </ng-container>
+    }
     <div class="wf-row"><span class="wf-lbl">Business expenses</span><span class="wf-amt val-r">-{{ money(totalCosts()) }}</span></div>
     <div class="wf-row"><span class="wf-lbl">Estimated taxes</span><span class="wf-amt val-r">-{{ money(totalTax()) }}</span></div>
-    <div class="wf-row wf-total"><span class="wf-lbl">You kept</span><span class="wf-amt" [ngClass]="net() >= 0 ? 'val-g' : 'val-r'">{{ plusMinus(net()) }}</span></div>
+    <div class="wf-row wf-total"><span class="wf-lbl">You kept</span><span class="wf-amt" [class]="net() >= 0 ? 'val-g' : 'val-r'">{{ plusMinus(net()) }}</span></div>
 
-    <ng-container *ngIf="totalIncome() > 0">
+    @if (totalIncome() > 0) {
       <div class="bar-track">
         <div class="bar-seg" [style.width.%]="costPct()" style="background:var(--red)"></div>
         <div class="bar-seg" [style.width.%]="taxPct()" style="background:var(--amb)"></div>
@@ -21,12 +21,14 @@
         <span class="bleg"><span class="bleg-dot" style="background:var(--amb)"></span>Taxes {{ taxPct() | number: '1.1-1' }}%</span>
         <span class="bleg"><span class="bleg-dot" style="background:var(--grn)"></span>Kept {{ keptPct() | number: '1.1-1' }}%</span>
       </div>
-    </ng-container>
+    }
 
-    <div class="hr-hero" *ngIf="realHourly() !== null">
-      <div class="hr-val" [ngClass]="(realHourly() || 0) >= 0 ? 'val-g' : 'val-r'">{{ money(realHourly()) }}/hr</div>
-      <div class="hr-lbl">true effective hourly rate (net ÷ all musician hours)</div>
-    </div>
+    @if (realHourly() !== null) {
+      <div class="hr-hero">
+        <div class="hr-val" [class]="(realHourly() || 0) >= 0 ? 'val-g' : 'val-r'">{{ money(realHourly()) }}/hr</div>
+        <div class="hr-lbl">true effective hourly rate (net ÷ all musician hours)</div>
+      </div>
+    }
   </div>
 
   <!-- Tax details -->
@@ -35,34 +37,36 @@
       <span class="acc-title">Tax details</span>
       <span class="acc-r"><span class="acc-val">{{ money(totalTax()) }} est.</span><span class="acc-arrow" [class.open]="accOpen('taxes')">▼</span></span>
     </div>
-    <div class="acc-body" [class.open]="accOpen('taxes')" *ngIf="accOpen('taxes')">
-      <div style="padding-top:10px">
-        <div class="dsec">Estimated taxes owed</div>
-        <div class="drow"><span class="dl">SE tax (income × 0.9235 × 15.3%)</span><span class="dv val-r">{{ money(seTax()) }}</span></div>
-        <div class="drow"><span class="dl">Income tax ({{ combinedRatePct() }}% bracket)</span><span class="dv val-r">{{ money(incomeTax()) }}</span></div>
-        <div class="drow"><span class="dl">Total tax burden</span><span class="dv val-r">{{ money(totalTax()) }}</span></div>
-        <div class="drow"><span class="dl">Tax savings via deductions</span><span class="dv val-g">{{ money(taxSavings()) }}</span></div>
+    @if (accOpen('taxes')) {
+      <div class="acc-body" [class.open]="accOpen('taxes')">
+        <div style="padding-top:10px">
+          <div class="dsec">Estimated taxes owed</div>
+          <div class="drow"><span class="dl">SE tax (income × 0.9235 × 15.3%)</span><span class="dv val-r">{{ money(seTax()) }}</span></div>
+          <div class="drow"><span class="dl">Income tax ({{ combinedRatePct() }}% bracket)</span><span class="dv val-r">{{ money(incomeTax()) }}</span></div>
+          <div class="drow"><span class="dl">Total tax burden</span><span class="dv val-r">{{ money(totalTax()) }}</span></div>
+          <div class="drow"><span class="dl">Tax savings via deductions</span><span class="dv val-g">{{ money(taxSavings()) }}</span></div>
 
-        <div class="dsec" style="margin-top:12px">Quarterly estimated payments</div>
-        <div class="qgrid">
-          <div class="qcard"><div class="qdate">Q1 — Apr 15</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
-          <div class="qcard"><div class="qdate">Q2 — Jun 16</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
-          <div class="qcard"><div class="qdate">Q3 — Sep 15</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
-          <div class="qcard"><div class="qdate">Q4 — Jan 15</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
-        </div>
+          <div class="dsec" style="margin-top:12px">Quarterly estimated payments</div>
+          <div class="qgrid">
+            <div class="qcard"><div class="qdate">Q1 — Apr 15</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
+            <div class="qcard"><div class="qdate">Q2 — Jun 16</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
+            <div class="qcard"><div class="qdate">Q3 — Sep 15</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
+            <div class="qcard"><div class="qdate">Q4 — Jan 15</div><div class="qamt">{{ money(totalTax() / 4) }}</div></div>
+          </div>
 
-        <div class="dsec" style="margin-top:12px">Schedule C numbers</div>
-        <div class="srow"><span class="sl">Gross SE income (incl. tips)</span><span class="sv">{{ money(totalIncome()) }}</span></div>
-        <div class="srow"><span class="sl">Total deductible expenses</span><span class="sv val-g">{{ money(totalDed()) }}</span></div>
-        <div class="srow"><span class="sl">Net profit (Sch. C line 31)</span><span class="sv">{{ money(totalIncome() - totalDed()) }}</span></div>
-        <div class="srow"><span class="sl">½ SE tax deduction (Form 1040)</span><span class="sv val-g">{{ money(seTax() * 0.5) }}</span></div>
-        <div class="srow"><span class="sl">SE tax owed (Schedule SE)</span><span class="sv val-r">{{ money(seTax()) }}</span></div>
+          <div class="dsec" style="margin-top:12px">Schedule C numbers</div>
+          <div class="srow"><span class="sl">Gross SE income (incl. tips)</span><span class="sv">{{ money(totalIncome()) }}</span></div>
+          <div class="srow"><span class="sl">Total deductible expenses</span><span class="sv val-g">{{ money(totalDed()) }}</span></div>
+          <div class="srow"><span class="sl">Net profit (Sch. C line 31)</span><span class="sv">{{ money(totalIncome() - totalDed()) }}</span></div>
+          <div class="srow"><span class="sl">½ SE tax deduction (Form 1040)</span><span class="sv val-g">{{ money(seTax() * 0.5) }}</span></div>
+          <div class="srow"><span class="sl">SE tax owed (Schedule SE)</span><span class="sv val-r">{{ money(seTax()) }}</span></div>
 
-        <div class="callout c-warn" style="margin-top:12px;font-size:12px">
-          ${{ irsRate() }}/mi · meals 50% ded. · room 100% ded. · SE: income × 0.9235 × 15.3%
+          <div class="callout c-warn" style="margin-top:12px;font-size:12px">
+            ${{ irsRate() }}/mi · meals 50% ded. · room 100% ded. · SE: income × 0.9235 × 15.3%
+          </div>
         </div>
       </div>
-    </div>
+    }
   </div>
 
   <!-- Expense breakdown -->
@@ -71,20 +75,22 @@
       <span class="acc-title">Expense breakdown</span>
       <span class="acc-r"><span class="acc-val">{{ money(totalCosts()) }} total</span><span class="acc-arrow" [class.open]="accOpen('expenses')">▼</span></span>
     </div>
-    <div class="acc-body" [class.open]="accOpen('expenses')" *ngIf="accOpen('expenses')">
-      <div style="padding-top:10px">
-        <div class="mg mg3">
-          <div class="mt"><div class="ml">Gig costs</div><div class="mv val-r">{{ money(gigCosts()) }}</div></div>
-          <div class="mt"><div class="ml">Rehearsals</div><div class="mv val-a">{{ money(rehCosts()) }}</div></div>
-          <div class="mt"><div class="ml">Other</div><div class="mv val-r">{{ money(expCosts()) }}</div></div>
-        </div>
-        <div class="mg mg3">
-          <div class="mt"><div class="ml">Paid hrs</div><div class="mv">{{ gigHours() | number: '1.1-1' }}</div></div>
-          <div class="mt"><div class="ml">Reh. hrs</div><div class="mv val-a">{{ rehHours() | number: '1.1-1' }}</div></div>
-          <div class="mt"><div class="ml">Miles</div><div class="mv">{{ miles() | number: '1.0-0' }}</div></div>
+    @if (accOpen('expenses')) {
+      <div class="acc-body" [class.open]="accOpen('expenses')">
+        <div style="padding-top:10px">
+          <div class="mg mg3">
+            <div class="mt"><div class="ml">Gig costs</div><div class="mv val-r">{{ money(gigCosts()) }}</div></div>
+            <div class="mt"><div class="ml">Rehearsals</div><div class="mv val-a">{{ money(rehCosts()) }}</div></div>
+            <div class="mt"><div class="ml">Other</div><div class="mv val-r">{{ money(expCosts()) }}</div></div>
+          </div>
+          <div class="mg mg3">
+            <div class="mt"><div class="ml">Paid hrs</div><div class="mv">{{ gigHours() | number: '1.1-1' }}</div></div>
+            <div class="mt"><div class="ml">Reh. hrs</div><div class="mv val-a">{{ rehHours() | number: '1.1-1' }}</div></div>
+            <div class="mt"><div class="ml">Miles</div><div class="mv">{{ miles() | number: '1.0-0' }}</div></div>
+          </div>
         </div>
       </div>
-    </div>
+    }
   </div>
 
   <!-- Per-gig breakdown -->
@@ -93,18 +99,27 @@
       <span class="acc-title">Per-gig breakdown</span>
       <span class="acc-r"><span class="acc-val">{{ incomeGigs().length }} gig{{ incomeGigs().length !== 1 ? 's' : '' }}</span><span class="acc-arrow" [class.open]="accOpen('gigs')">▼</span></span>
     </div>
-    <div class="acc-body" [class.open]="accOpen('gigs')" *ngIf="accOpen('gigs')">
-      <div class="empty" style="padding:20px 0" *ngIf="!incomeGigs().length">No income gigs for {{ year }} yet.</div>
-      <div style="padding-top:6px" *ngIf="incomeGigs().length">
-        <div class="grow" *ngFor="let r of incomeGigs()">
-          <div><div class="gl">{{ r.desc || '—' }}</div><div class="gd">{{ gigDate(r) }}</div></div>
-          <div class="gr">
-            <div class="gamt val-g">+{{ money(gigTotal(r)) }}</div>
-            <div class="ghr" [ngClass]="(r.trueHourly || 0) >= 0 ? 'val-g' : 'val-r'" *ngIf="r.trueHourly != null">{{ money(r.trueHourly) }}/hr true</div>
+    @if (accOpen('gigs')) {
+      <div class="acc-body" [class.open]="accOpen('gigs')">
+        @if (!incomeGigs().length) {
+          <div class="empty" style="padding:20px 0">No income gigs for {{ year }} yet.</div>
+        } @else {
+          <div style="padding-top:6px">
+            @for (r of incomeGigs(); track r.id) {
+              <div class="grow">
+                <div><div class="gl">{{ r.desc || '—' }}</div><div class="gd">{{ gigDate(r) }}</div></div>
+                <div class="gr">
+                  <div class="gamt val-g">+{{ money(gigTotal(r)) }}</div>
+                  @if (r.trueHourly != null) {
+                    <div class="ghr" [class]="(r.trueHourly || 0) >= 0 ? 'val-g' : 'val-r'">{{ money(r.trueHourly) }}/hr true</div>
+                  }
+                </div>
+              </div>
+            }
           </div>
-        </div>
+        }
       </div>
-    </div>
+    }
   </div>
 
   <div style="height:88px"></div>

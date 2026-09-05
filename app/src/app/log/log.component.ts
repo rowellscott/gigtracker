@@ -1,5 +1,4 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { GigDbService, GigRecord, TaxSettings } from '../services/gig-db.service';
 import { AppStateService } from '../services/app-state.service';
 
@@ -10,7 +9,6 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'app-log',
   standalone: true,
-  imports: [CommonModule],
   templateUrl: './log.component.html',
   styleUrl: './log.component.css',
 })
