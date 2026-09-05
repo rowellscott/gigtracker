@@ -49,15 +49,44 @@ describe('SummaryComponent', () => {
     expect(component.totalTips()).toBe(20);
   });
 
-  it('computes total business costs across all record types', () => {
-    expect(component.totalCosts()).toBe(20);
+  it('computes total business costs the legacy way: gig+rehearsal trueCosts plus expense amount', () => {
+    // gigCosts(5) + rehCosts(15) + expCosts(expense.amount = 30) -- matches
+    // allCosts in the legacy renderSummary(), where an expense-only record's
+    // cost is its `amount`, not `trueCosts`.
+    expect(component.totalCosts()).toBe(50);
   });
 
   it('computes total tax from income records only', () => {
     expect(component.totalTax()).toBe(14);
   });
 
-  it('computes net as (gross+tips) - costs - tax', () => {
-    expect(component.net()).toBe((100 + 20) - 20 - 14);
+  it('computes net as (gross+tips) - allCosts - tax', () => {
+    expect(component.net()).toBe((100 + 20) - 50 - 14);
+  });
+
+  it('breaks costs down the legacy way (gigCosts / rehCosts / expCosts)', () => {
+    expect(component.gigCosts()).toBe(5);
+    expect(component.rehCosts()).toBe(15);
+    expect(component.expCosts()).toBe(30);
+  });
+
+  it('the hero bar percentages are shares of total income and never exceed 100', () => {
+    // totalIncome 120; costPct = 50/120*100, taxPct = 14/120*100
+    expect(component.costPct()).toBeCloseTo((50 / 120) * 100, 6);
+    expect(component.taxPct()).toBeCloseTo((14 / 120) * 100, 6);
+    for (const p of [component.costPct(), component.taxPct(), component.keptPct()]) {
+      expect(p).toBeGreaterThanOrEqual(0);
+      expect(p).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('accordion state: taxes open by default, toggles independently', () => {
+    expect(component.accOpen('taxes')).toBe(true);
+    expect(component.accOpen('expenses')).toBe(false);
+    component.toggleAcc('expenses');
+    expect(component.accOpen('expenses')).toBe(true);
+    expect(component.accOpen('taxes')).toBe(true);
+    component.toggleAcc('taxes');
+    expect(component.accOpen('taxes')).toBe(false);
   });
 });

@@ -1,12 +1,12 @@
-.log { display: flex; flex-direction: column; gap: 0.75rem; }
-.filters { display: flex; gap: 0.5rem; }
-.filters button.active { font-weight: bold; text-decoration: underline; }
-.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
-.row { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
-.amount-income { color: green; }
-.amount-expense { color: red; }
-.amount-rehearsal { color: inherit; }
-.empty-state { color: #666; font-style: italic; }
-.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; padding-top: 0.5rem; }
+/* Card / detail / filter styling is in the global src/styles.css (ported
+   from the legacy single-file app). Only the pager is new to the rewrite. */
+.log { display: block; }
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 4px 0 8px;
+}
 .pager button:disabled { opacity: 0.4; cursor: default; }
-.pager-label { font-size: 0.85rem; color: #4b5563; }
+.pager-label { font-size: 12px; color: var(--t2); }

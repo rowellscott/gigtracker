@@ -1,52 +1,115 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GigDbService, GigRecord } from '../services/gig-db.service';
+import { GigDbService, GigRecord, TaxSettings } from '../services/gig-db.service';
+
+const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
+  arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
 @Component({
   selector: 'app-summary',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './summary.component.html',
-  styleUrl: './summary.component.css'
+  styleUrl: './summary.component.css',
 })
 export class SummaryComponent implements OnInit {
   private gigDb = inject(GigDbService);
 
   records = signal<GigRecord[]>([]);
+  settings = signal<Partial<TaxSettings>>({});
+  openAcc = signal<Set<string>>(new Set(['taxes']));
 
-  yearRecords = computed(() => {
-    const year = String(new Date().getFullYear());
-    return this.records().filter(r => r.date && r.date.startsWith(year));
-  });
+  readonly year = String(new Date().getFullYear());
 
-  grossIncome = computed(() =>
-    this.yearRecords()
-      .filter(r => r.type === 'income')
-      .reduce((sum, r) => sum + (r.amount || 0), 0)
+  yearRecords = computed(() =>
+    this.records().filter((r) => r.date && r.date.startsWith(this.year)),
   );
+  private incomeR = computed(() => this.yearRecords().filter((r) => r.type === 'income'));
+  private rehearsalR = computed(() => this.yearRecords().filter((r) => r.type === 'rehearsal'));
+  private expenseR = computed(() => this.yearRecords().filter((r) => r.type === 'expense'));
 
-  totalTips = computed(() =>
-    this.yearRecords()
-      .filter(r => r.type === 'income')
-      .reduce((sum, r) => sum + (r.tips || 0), 0)
-  );
+  grossIncome = computed(() => sum(this.incomeR(), 'amount'));
+  totalTips = computed(() => sum(this.incomeR(), 'tips'));
+  totalIncome = computed(() => this.grossIncome() + this.totalTips());
 
-  totalCosts = computed(() =>
-    this.yearRecords().reduce((sum, r) => sum + (r.trueCosts || 0), 0)
-  );
+  gigCosts = computed(() => sum(this.incomeR(), 'trueCosts'));
+  rehCosts = computed(() => sum(this.rehearsalR(), 'trueCosts'));
+  // Legacy: an expense-only record's cost is its `amount`, not `trueCosts`.
+  expCosts = computed(() => sum(this.expenseR(), 'amount'));
+  /** Every business cost for the year -- matches allCosts in the legacy renderSummary(). */
+  totalCosts = computed(() => this.gigCosts() + this.rehCosts() + this.expCosts());
 
-  totalTax = computed(() =>
-    this.yearRecords()
-      .filter(r => r.type === 'income')
-      .reduce((sum, r) => sum + (r.seTax || 0) + (r.incomeTax || 0), 0)
-  );
+  totalDed = computed(() => sum(this.yearRecords(), 'totalDed'));
+  seTax = computed(() => sum(this.incomeR(), 'seTax'));
+  incomeTax = computed(() => sum(this.incomeR(), 'incomeTax'));
+  totalTax = computed(() => this.seTax() + this.incomeTax());
+  taxSavings = computed(() => sum(this.yearRecords(), 'taxSavings'));
 
-  net = computed(() =>
-    (this.grossIncome() + this.totalTips()) - this.totalCosts() - this.totalTax()
+  miles = computed(() => sum(this.yearRecords(), 'miles'));
+  gigHours = computed(() => sum(this.incomeR(), 'hours'));
+  rehHours = computed(() => sum(this.rehearsalR(), 'hours'));
+  totalHours = computed(() => this.gigHours() + this.rehHours());
+
+  net = computed(() => this.totalIncome() - this.totalCosts() - this.totalTax());
+  realHourly = computed(() => (this.totalHours() > 0 ? this.net() / this.totalHours() : null));
+
+  incomeGigs = computed(() => this.incomeR());
+
+  private pct(v: number): number {
+    const ti = this.totalIncome();
+    return ti > 0 ? Math.max(0, Math.min(100, (v / ti) * 100)) : 0;
+  }
+  costPct = computed(() => this.pct(this.totalCosts()));
+  taxPct = computed(() => this.pct(this.totalTax()));
+  keptPct = computed(() => this.pct(Math.max(0, this.net())));
+
+  combinedRatePct = computed(
+    () => Number(this.settings().federalRate ?? 24) + Number(this.settings().stateRate ?? 0),
   );
+  irsRate = computed(() => this.settings().irsRate ?? 0.725);
 
   async ngOnInit(): Promise<void> {
-    const recs = await this.gigDb.recsGetAll();
-    this.records.set(recs);
+    this.records.set(await this.gigDb.recsGetAll());
+    void this.loadSettings();
+  }
+
+  private async loadSettings(): Promise<void> {
+    try {
+      if (typeof this.gigDb.kvGet === 'function') {
+        this.settings.set((await this.gigDb.kvGet<TaxSettings>('appSettings')) ?? {});
+      }
+    } catch {
+      /* defaults are fine */
+    }
+  }
+
+  accOpen(id: string): boolean {
+    return this.openAcc().has(id);
+  }
+
+  toggleAcc(id: string): void {
+    this.openAcc.update((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  money(n: number | null | undefined): string {
+    return '$' + Math.abs(n ?? 0).toFixed(2);
+  }
+
+  plusMinus(n: number | null | undefined): string {
+    const v = n ?? 0;
+    return (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+  }
+
+  gigDate(r: GigRecord): string {
+    return r.payMethod ? `${r.date} · ${r.payMethod}` : r.date;
+  }
+
+  gigTotal(r: GigRecord): number {
+    return (r.amount || 0) + (r.tips || 0);
   }
 }

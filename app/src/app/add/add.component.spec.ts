@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AddComponent, todayStr } from './add.component';
 import { GigDbService, GigRecord, SavedLocation } from '../services/gig-db.service';
 import { TaxCalcService } from '../services/tax-calc.service';
+import { AppStateService } from '../services/app-state.service';
 
 describe('AddComponent', () => {
   let fixture: ComponentFixture<AddComponent>;
@@ -173,5 +174,95 @@ describe('AddComponent', () => {
       expect(cmp.savedLocations).toEqual([{ name: 'Ace Venue', miles: 3 }]);
       expect(cmp.fm.desc).toBe('Club gig');
     });
+  });
+});
+
+describe('AddComponent edit mode', () => {
+  let fixture: ComponentFixture<AddComponent>;
+  let cmp: AddComponent;
+  let saved: GigRecord[];
+  const existing: GigRecord = {
+    id: 'rec-42',
+    date: '2026-03-10',
+    payDate: '2026-03-20',
+    type: 'income',
+    desc: 'Wedding set',
+    amount: 800,
+    payMethod: 'check',
+    miles: 40,
+    gasPrice: 3.5,
+    hasTips: true,
+    tipsAmount: 100,
+    tipsInTax: true,
+    tips: 100,
+    start: '18:00',
+    end: '23:00',
+    createdAt: '2026-03-10T02:00:00.000Z',
+    deleted: false,
+  };
+
+  async function mount(editId: string | null): Promise<void> {
+    saved = [];
+    const dbStub = {
+      recSave: (r: GigRecord) => {
+        saved.push(r);
+        return Promise.resolve();
+      },
+      recGet: (id: string) => Promise.resolve(id === existing.id ? { ...existing } : undefined),
+      kvGet: () => Promise.resolve(null),
+      getSavedLocations: () => Promise.resolve([]),
+      saveSavedLocation: () => Promise.resolve([]),
+      removeSavedLocation: () => Promise.resolve([]),
+    };
+    await TestBed.configureTestingModule({
+      imports: [AddComponent],
+      providers: [{ provide: GigDbService, useValue: dbStub }],
+    }).compileComponents();
+    const state = TestBed.inject(AppStateService);
+    if (editId) state.startEdit(editId);
+    fixture = TestBed.createComponent(AddComponent);
+    cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  it('loads the record into the form when AppStateService has an editId', async () => {
+    await mount('rec-42');
+    expect(cmp.editId).toBe('rec-42');
+    expect(cmp.fm.desc).toBe('Wedding set');
+    expect(cmp.fm.amount).toBe('800');
+    expect(cmp.fm.payDate).toBe('2026-03-20');
+    expect(cmp.fm.hasTips).toBe(true);
+    expect(cmp.fm.tipsAmount).toBe('100');
+    expect(cmp.saveLabel).toBe('Update Record');
+  });
+
+  it('saving an edit writes back to the SAME id and preserves createdAt', async () => {
+    await mount('rec-42');
+    cmp.fm.amount = '900';
+    await cmp.save();
+    expect(saved.length).toBe(1);
+    expect(saved[0].id).toBe('rec-42');
+    expect(saved[0].amount).toBe(900);
+    expect(saved[0].createdAt).toBe('2026-03-10T02:00:00.000Z');
+    expect(TestBed.inject(AppStateService).editId()).toBeNull();
+    expect(TestBed.inject(AppStateService).activeTab()).toBe('log');
+  });
+
+  it('cancelEdit drops edit state without saving and returns to the log', async () => {
+    await mount('rec-42');
+    cmp.fm.amount = '5';
+    cmp.cancelEdit();
+    expect(saved.length).toBe(0);
+    expect(cmp.editId).toBeNull();
+    expect(cmp.fm.desc).toBe('');
+    expect(TestBed.inject(AppStateService).editId()).toBeNull();
+    expect(TestBed.inject(AppStateService).activeTab()).toBe('log');
+  });
+
+  it('with no editId it is a normal fresh add', async () => {
+    await mount(null);
+    expect(cmp.editId).toBeNull();
+    expect(cmp.saveLabel).toBe('Save Income Gig');
   });
 });

@@ -1,17 +1,13 @@
 <div class="topbar">
   <span class="topbar-title">🎸 GigTracker 2026</span>
+  <div class="topbar-r">
+    <button type="button" class="bk-dot" [class.warn]="backup() === 'warn'"
+      [class.never]="backup() === 'never'" [title]="backupTitle()"
+      (click)="selectTab('settings')" aria-label="Backup status — open Settings"></button>
+    <button type="button" class="icon-btn" title="Settings & backup"
+      (click)="selectTab('settings')">⚙</button>
+  </div>
 </div>
-
-<nav class="tabbar">
-  <button type="button" class="tab" data-tab="add"
-    [class.active]="activeTab() === 'add'" (click)="selectTab('add')">Add</button>
-  <button type="button" class="tab" data-tab="log"
-    [class.active]="activeTab() === 'log'" (click)="selectTab('log')">Log</button>
-  <button type="button" class="tab" data-tab="summary"
-    [class.active]="activeTab() === 'summary'" (click)="selectTab('summary')">Summary</button>
-  <button type="button" class="tab" data-tab="settings"
-    [class.active]="activeTab() === 'settings'" (click)="selectTab('settings')">Settings</button>
-</nav>
 
 <main class="content">
   @if (activeTab() === 'add') {
@@ -24,3 +20,14 @@
     <app-settings />
   }
 </main>
+
+<nav class="tabs tabbar">
+  <button type="button" class="tb tab" data-tab="add"
+    [class.active]="activeTab() === 'add'" (click)="selectTab('add')">{{ editing() ? '✏ Edit' : '+ Add' }}</button>
+  <button type="button" class="tb tab" data-tab="log"
+    [class.active]="activeTab() === 'log'" (click)="selectTab('log')">Log</button>
+  <button type="button" class="tb tab" data-tab="summary"
+    [class.active]="activeTab() === 'summary'" (click)="selectTab('summary')">Summary</button>
+  <button type="button" class="tb tab" data-tab="settings"
+    [class.active]="activeTab() === 'settings'" (click)="selectTab('settings')">Settings</button>
+</nav>

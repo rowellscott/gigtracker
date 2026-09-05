@@ -1,47 +1,66 @@
 <section class="settings">
-  <h2>Settings</h2>
-
-  <div class="stats">
-    <p>Last backup: <strong>{{ lastBackupAt() }}</strong></p>
-    <p>Records: <strong>{{ recordCount() }}</strong></p>
+  <div class="sec">Backup &amp; export</div>
+  <div class="bk-card">
+    <div class="bk-row">
+      <span>Last backup</span>
+      <span style="font-weight:600" [style.color]="lastBackupAt() ? 'var(--t)' : 'var(--red-t)'">{{ lastBackupLabel() }}</span>
+    </div>
+    <div class="bk-row">
+      <span>Records on device</span>
+      <span style="font-weight:600">{{ recordCount() }}</span>
+    </div>
   </div>
+  <p class="note" style="margin-bottom:10px">
+    Your data lives on this device only. Export regularly so you never lose it.
+    The amber dot in the header means it's been 14+ days since your last export.
+  </p>
 
-  <h3>Tax rates</h3>
-  <div class="grid">
-    <label>
-      Federal rate (%)
-      <input type="number" step="any" [(ngModel)]="cfg.federalRate" />
-    </label>
-    <label>
-      State rate (%)
-      <input type="number" step="any" [(ngModel)]="cfg.stateRate" />
-    </label>
-    <label>
-      IRS rate ($/mi)
-      <input type="number" step="any" [(ngModel)]="cfg.irsRate" />
-    </label>
-    <label>
-      True cost rate ($/mi)
-      <input type="number" step="any" [(ngModel)]="cfg.trueCostRate" />
-    </label>
-    <label>
-      MPG
-      <input type="number" step="any" [(ngModel)]="cfg.mpg" />
-    </label>
-  </div>
-  <button type="button" (click)="saveSettings()">Save settings</button>
+  <button type="button" class="btn btn-b" (click)="exportCsv()">Export CSV (for Numbers / Excel)</button>
+  <button type="button" class="btn btn-n" style="margin-top:8px" (click)="exportJson()">Export full backup (JSON)</button>
+  <p class="note">CSV → open in Numbers. JSON → full backup you can restore or move to a new phone.</p>
 
-  <h3>Backup</h3>
-  <div class="actions">
-    <button type="button" (click)="exportCsv()">Export CSV</button>
-    <button type="button" (click)="exportJson()">Export JSON backup</button>
-    <label class="import">
-      Import JSON
-      <input type="file" accept="application/json,.json" (change)="onFileSelected($event)" />
-    </label>
+  <label style="margin-top:16px">Restore from JSON backup</label>
+  <input type="file" accept="application/json,.json" (change)="onFileSelected($event)" style="font-size:14px;padding:8px 10px" />
+  <p class="note">Restoring merges backup records with existing data (no deletions, newer record wins).</p>
+
+  <div class="sep"></div>
+  <div class="sec">Tax rates ({{ 2026 }})</div>
+
+  <label>Federal income tax bracket (%)
+    <input type="number" min="0" max="40" step="1" [(ngModel)]="cfg.federalRate" />
+  </label>
+  <p class="note">Your bracket: 24%. Rates: 10, 12, 22, 24, 32, 35, 37</p>
+
+  <label>State income tax rate (%) — FL = 0
+    <input type="number" min="0" max="20" step="0.1" [(ngModel)]="cfg.stateRate" />
+  </label>
+
+  <div class="sep"></div>
+  <div class="sec">Mileage rates</div>
+
+  <label>IRS standard mileage rate ($/mi)
+    <input type="number" min="0" max="2" step="0.005" [(ngModel)]="cfg.irsRate" />
+  </label>
+  <p class="note">2026 confirmed rate: $0.725/mi. Update each January at IRS.gov.</p>
+
+  <label>True all-in vehicle cost ($/mi)
+    <input type="number" min="0" max="2" step="0.01" [(ngModel)]="cfg.trueCostRate" />
+  </label>
+  <p class="note">Includes fuel + depreciation + insurance. AAA average ~$0.52–0.65/mi.</p>
+
+  <label>Car MPG
+    <input type="number" min="1" max="120" step="1" [(ngModel)]="cfg.mpg" />
+  </label>
+
+  <button type="button" class="btn btn-b" (click)="saveSettings()">Save settings</button>
+
+  <div class="callout c-warn" style="margin-top:16px">
+    IRS rule: standard mileage ($0.725/mi) OR actual vehicle expenses for the year — not both.
   </div>
 
   @if (status()) {
-    <p class="status">{{ status() }}</p>
+    <p class="callout c-success">{{ status() }}</p>
   }
+
+  <div style="height:60px"></div>
 </section>

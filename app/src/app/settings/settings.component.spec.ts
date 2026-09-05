@@ -37,22 +37,29 @@ describe('recordsToCsv', () => {
     expect(lines[0].split(',')).toEqual(CSV_COLUMNS);
   });
 
-  it('includes every required field in the header', () => {
+  it('includes every legacy accountant-facing column in the header', () => {
+    // The header row is the human-readable label row from exportCSV() in
+    // index.html, kept verbatim so a CSV opened in Numbers/Excel looks the
+    // same as it always has.
     const header = recordsToCsv([]).split('\n')[0];
     for (const f of [
-      'date',
-      'type',
-      'desc',
-      'amount',
-      'tips',
-      'hours',
-      'miles',
-      'trueCosts',
-      'totalDed',
-      'taxSavings',
-      'seTax',
-      'incomeTax',
-      'netAfterAll',
+      'Date',
+      'Pay Date',
+      'Type',
+      'Description',
+      'Base Pay',
+      'Tips',
+      'Total Income',
+      'Hours',
+      'Miles',
+      'IRS Ded',
+      'Total Costs',
+      'Total Ded',
+      'Tax Savings',
+      'SE Tax',
+      'Income Tax',
+      'Net After All',
+      'Notes',
     ]) {
       expect(header).toContain(f);
     }
@@ -64,6 +71,32 @@ describe('recordsToCsv', () => {
     expect(row).toContain('"Jazz, Trio"');
     expect(row).toContain('300');
     expect(row).toContain('190');
+  });
+
+  it('matches the legacy row shape: Pay Date, Tips In Tax yes/no, Total Income = base + tips', () => {
+    const csv = recordsToCsv([
+      rec({ date: '2026-01-01', payDate: '2026-01-08', amount: 300, tips: 20, tipsInTax: true, payMethod: 'Venmo' }),
+    ]);
+    const cells = csv.split('\n')[1].split(',');
+    // Date, Pay Date, Type, "Description", Base Pay, Tips, Tips In Tax, Total Income, ...
+    expect(cells[0]).toBe('2026-01-01');
+    expect(cells[1]).toBe('2026-01-08');
+    expect(cells[4]).toBe('300.00');
+    expect(cells[5]).toBe('20.00');
+    expect(cells[6]).toBe('yes');
+    expect(cells[7]).toBe('320.00');
+  });
+
+  it('Tips In Tax is "no" when the record opted tips out of tax', () => {
+    const csv = recordsToCsv([rec({ tipsInTax: false })]);
+    expect(csv.split('\n')[1].split(',')[6]).toBe('no');
+  });
+});
+
+describe('recordsToBackup appVersion', () => {
+  it('stamps the legacy app version so a backup restores like the old app expects', () => {
+    const backup = recordsToBackup([], { ...DEFAULT_TAX_SETTINGS });
+    expect(backup.appVersion).toBe('2.0');
   });
 });
 

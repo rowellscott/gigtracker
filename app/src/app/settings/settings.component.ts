@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GigDbService } from '../services/gig-db.service';
 
@@ -17,18 +17,28 @@ export interface SettingsTaxConfig {
 export interface CsvRecord {
   id?: string;
   date?: string;
+  payDate?: string;
   type?: string;
   desc?: string;
   amount?: number;
   tips?: number;
+  tipsInTax?: boolean;
   hours?: number;
+  grossHourly?: number | null;
   miles?: number;
+  irsDed?: number;
+  room?: number;
+  meal?: number;
+  oth?: number;
   trueCosts?: number;
   totalDed?: number;
   taxSavings?: number;
   seTax?: number;
   incomeTax?: number;
   netAfterAll?: number;
+  trueHourly?: number | null;
+  payMethod?: string;
+  notes?: string;
   updatedAt?: string;
   [key: string]: unknown;
 }
@@ -41,54 +51,100 @@ export const DEFAULT_TAX_SETTINGS: SettingsTaxConfig = {
   mpg: 28,
 };
 
+/**
+ * The legacy CSV export header (exportCSV() in index.html) -- kept verbatim
+ * so a tax accountant opening the file in Numbers/Excel sees the same
+ * columns they always have. This is the human-readable label row, not a
+ * list of record field keys.
+ */
 export const CSV_COLUMNS: string[] = [
-  'date',
-  'type',
-  'desc',
-  'amount',
-  'tips',
-  'hours',
-  'miles',
-  'trueCosts',
-  'totalDed',
-  'taxSavings',
-  'seTax',
-  'incomeTax',
-  'netAfterAll',
+  'Date',
+  'Pay Date',
+  'Type',
+  'Description',
+  'Base Pay',
+  'Tips',
+  'Tips In Tax',
+  'Total Income',
+  'Hours',
+  'Rate ($/hr)',
+  'Miles',
+  'IRS Ded',
+  'Room Rental',
+  'Meal',
+  'Other',
+  'Total Costs',
+  'Total Ded',
+  'Tax Savings',
+  'SE Tax',
+  'Income Tax',
+  'Net After All',
+  'True Hourly',
+  'Payment Method',
+  'Notes',
 ];
 
-function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  const s = String(value);
-  if (s.includes('"') || s.includes(',') || s.includes('\n')) {
-    return '"' + s.replace(/"/g, '""') + '"';
-  }
-  return s;
+function csvQuote(value: string): string {
+  return '"' + value.replace(/"/g, '""') + '"';
 }
 
-/** PURE: records -> CSV text (header row + one row per record). */
+const n2 = (v: number | undefined | null): string => (Number(v) || 0).toFixed(2);
+const n1 = (v: number | undefined | null): string => (Number(v) || 0).toFixed(1);
+
+/** PURE: records -> legacy CSV text (header row + one row per record),
+ * matching exportCSV() in index.html column-for-column. */
 export function recordsToCsv(records: CsvRecord[]): string {
   const list = records || [];
   const lines: string[] = [CSV_COLUMNS.join(',')];
   for (const r of list) {
-    lines.push(CSV_COLUMNS.map((c) => csvCell((r as CsvRecord)[c])).join(','));
+    const ti = (Number(r.amount) || 0) + (Number(r.tips) || 0);
+    lines.push(
+      [
+        r.date ?? '',
+        r.payDate ?? '',
+        r.type ?? '',
+        csvQuote(r.desc ?? ''),
+        n2(r.amount),
+        n2(r.tips),
+        r.tipsInTax ? 'yes' : 'no',
+        ti.toFixed(2),
+        n2(r.hours),
+        r.grossHourly != null ? n2(r.grossHourly) : '',
+        n1(r.miles),
+        n2(r.irsDed),
+        n2(r.room),
+        n2(r.meal),
+        n2(r.oth),
+        n2(r.trueCosts),
+        n2(r.totalDed),
+        n2(r.taxSavings),
+        n2(r.seTax),
+        n2(r.incomeTax),
+        n2(r.netAfterAll),
+        r.trueHourly != null ? n2(r.trueHourly) : '',
+        csvQuote(r.payMethod ?? ''),
+        csvQuote(r.notes ?? ''),
+      ].join(','),
+    );
   }
   return lines.join('\n');
 }
 
-/** PURE: records + config -> JSON backup payload. */
+/** PURE: records + config -> JSON backup payload (matches exportJSON()). */
 export function recordsToBackup(
   records: CsvRecord[],
   cfg: SettingsTaxConfig,
-): { exportedAt: string; taxConfig: SettingsTaxConfig; records: CsvRecord[] } {
+): { exportedAt: string; appVersion: string; taxConfig: SettingsTaxConfig; records: CsvRecord[] } {
   return {
     exportedAt: new Date().toISOString(),
+    appVersion: '2.0',
     taxConfig: cfg,
     records: records || [],
   };
 }
 
-/** PURE: merge imported records into existing ones. */
+/** PURE: merge imported records into existing ones (newer updatedAt wins,
+ * ties go to the incoming record -- restore behaviour, matches importJSON()). */
 export function mergeImportedRecords(
   existing: CsvRecord[],
   imported: CsvRecord[],
@@ -133,9 +189,15 @@ export class SettingsComponent {
   private db = inject(GigDbService);
 
   cfg: SettingsTaxConfig = { ...DEFAULT_TAX_SETTINGS };
-  lastBackupAt = signal<string>('Never');
+  lastBackupAt = signal<string | null>(null);
   recordCount = signal<number>(0);
   status = signal<string>('');
+
+  readonly lastBackupLabel = computed(() => {
+    const last = this.lastBackupAt();
+    if (!last) return 'Never';
+    return `${new Date(last).toLocaleDateString()} (${this.recordCount()} records)`;
+  });
 
   constructor() {
     void this.load();
@@ -146,19 +208,23 @@ export class SettingsComponent {
       | SettingsTaxConfig
       | null;
     this.cfg = { ...DEFAULT_TAX_SETTINGS, ...(saved || {}) };
-    const last = (await this.db.kvGet<string>('lastBackupAt')) as string | null;
-    this.lastBackupAt.set(last ? last : 'Never');
+    this.lastBackupAt.set((await this.db.kvGet<string>('lastBackupAt')) as string | null);
     const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
     this.recordCount.set((recs || []).length);
   }
 
   async saveSettings(): Promise<void> {
+    const num = (v: unknown, fallback: number) => {
+      const n = Number(v);
+      return isNaN(n) || n === 0 ? fallback : n;
+    };
+    // Match saveCfg() in the legacy app: blank/0 falls back to the sane default.
     const cfg: SettingsTaxConfig = {
-      federalRate: Number(this.cfg.federalRate) || 0,
+      federalRate: num(this.cfg.federalRate, 24),
       stateRate: Number(this.cfg.stateRate) || 0,
-      irsRate: Number(this.cfg.irsRate) || 0,
-      trueCostRate: Number(this.cfg.trueCostRate) || 0,
-      mpg: Number(this.cfg.mpg) || 0,
+      irsRate: num(this.cfg.irsRate, 0.725),
+      trueCostRate: num(this.cfg.trueCostRate, 0.5),
+      mpg: num(this.cfg.mpg, 28),
     };
     this.cfg = cfg;
     await this.db.kvSet('appSettings', cfg);
@@ -168,7 +234,6 @@ export class SettingsComponent {
   private download(text: string, filename: string, mime: string): void {
     try {
       const blob = new Blob([text], { type: mime });
-      const nav = navigator as unknown as { share?: unknown };
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -177,7 +242,6 @@ export class SettingsComponent {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      void nav;
     } catch {
       /* download unavailable in this environment */
     }
@@ -189,9 +253,17 @@ export class SettingsComponent {
     this.lastBackupAt.set(now);
   }
 
+  private stamp(): string {
+    return new Date().toISOString().split('T')[0];
+  }
+
   async exportCsv(): Promise<void> {
     const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
-    this.download(recordsToCsv(recs || []), 'gigtracker.csv', 'text/csv');
+    if (!recs || recs.length === 0) {
+      this.status.set('No records to export.');
+      return;
+    }
+    this.download(recordsToCsv(recs), `gigs_${this.stamp()}.csv`, 'text/csv');
     await this.markBackedUp();
     this.status.set('CSV exported.');
   }
@@ -201,7 +273,7 @@ export class SettingsComponent {
     const payload = recordsToBackup(recs || [], this.cfg);
     this.download(
       JSON.stringify(payload, null, 2),
-      'gigtracker-backup.json',
+      `gigtracker_backup_${this.stamp()}.json`,
       'application/json',
     );
     await this.markBackedUp();
@@ -211,7 +283,7 @@ export class SettingsComponent {
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input && input.files ? input.files[0] : null;
-    if (file) void this.importFile(file);
+    if (file) void this.importFile(file).finally(() => (input.value = ''));
   }
 
   importFile(file: File): Promise<void> {
@@ -223,18 +295,14 @@ export class SettingsComponent {
             const parsed = JSON.parse(String(reader.result || '{}'));
             const imported: CsvRecord[] = Array.isArray(parsed)
               ? parsed
-              : ((parsed && parsed.records) || []);
+              : (parsed && parsed.records) || [];
             const existing = (await this.db.recsGetAll()) as unknown as CsvRecord[];
-            const { toSave, skipped } = mergeImportedRecords(
-              existing || [],
-              imported,
-            );
+            const { toSave, skipped } = mergeImportedRecords(existing || [], imported);
             for (const rec of toSave) {
-              await this.db.recSave(rec as never);
+              await this.db.recSave({ ...rec, synced: true } as never);
             }
-            this.status.set(
-              `Imported ${toSave.length} record(s), skipped ${skipped}.`,
-            );
+            this.status.set(`Restored ${toSave.length} record(s), skipped ${skipped}.`);
+            await this.markBackedUp();
             await this.load();
           } catch {
             this.status.set('Import failed: invalid file.');

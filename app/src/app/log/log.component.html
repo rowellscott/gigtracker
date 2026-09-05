@@ -1,26 +1,100 @@
 <div class="log">
-  <div class="filters">
-    <button type="button" [class.active]="filter() === 'all'" (click)="setFilter('all')">All</button>
-    <button type="button" [class.active]="filter() === 'income'" (click)="setFilter('income')">Income</button>
-    <button type="button" [class.active]="filter() === 'rehearsal'" (click)="setFilter('rehearsal')">Rehearsal</button>
-    <button type="button" [class.active]="filter() === 'expense'" (click)="setFilter('expense')">Expense</button>
+  <div class="filter-row">
+    <button type="button" class="fbtn" [class.active]="filter() === 'all'" (click)="setFilter('all')">All</button>
+    <button type="button" class="fbtn" [class.active]="filter() === 'income'" (click)="setFilter('income')">Income</button>
+    <button type="button" class="fbtn" [class.active]="filter() === 'rehearsal'" (click)="setFilter('rehearsal')">Rehearsal</button>
+    <button type="button" class="fbtn" [class.active]="filter() === 'expense'" (click)="setFilter('expense')">Expense</button>
   </div>
 
-  <ul class="rows" *ngIf="pagedRecords().length; else empty">
-    <li class="row" *ngFor="let r of pagedRecords()">
-      <span class="desc">{{ r.desc }}</span>
-      <span class="date">{{ formatDate(r.date) }}</span>
-      <span class="amount" [ngClass]="amountClass(r)">{{ amountLabel(r) }}</span>
-    </li>
-  </ul>
+  <ng-container *ngIf="pagedRecords().length; else empty">
+    <div class="card" *ngFor="let r of pagedRecords()" [class.editing]="editId() === r.id">
+      <div class="card-hdr">
+        <div style="min-width:0">
+          <div class="card-name">{{ r.desc || '—' }}</div>
+          <div class="card-date">{{ cardDate(r) }}</div>
+        </div>
+        <span class="card-amt" [ngClass]="amountTone(r)">{{ amountLabel(r) }}</span>
+      </div>
+
+      <div class="card-meta">
+        <span class="pill pill-{{ r.type }}">{{ pillLabel(r) }}</span>
+        <span class="pill pill-edit" *ngIf="editId() === r.id">editing…</span>
+        <span class="pill pill-n" *ngIf="(r.hours || 0) > 0">
+          {{ r.hours!.toFixed(1) }} hrs<span *ngIf="r.grossHourly != null"> · {{ money(r.grossHourly) }}/hr</span>
+        </span>
+        <span class="pill pill-n" *ngIf="(r.miles || 0) > 0">{{ r.miles }} mi</span>
+        <span class="pill pill-n" *ngIf="(r.tips || 0) > 0">tips +{{ money(r.tips) }}</span>
+        <span class="pill pill-n" *ngIf="r.payMethod">{{ r.payMethod }}</span>
+      </div>
+
+      <div class="detail" *ngIf="expandedId() === r.id">
+        <ng-container *ngIf="r.type === 'income'">
+          <div class="dsec">Income</div>
+          <div class="drow"><span class="dl">Base pay</span><span class="dv val-g">{{ money(r.amount) }}</span></div>
+          <ng-container *ngIf="(r.tips || 0) > 0">
+            <div class="drow"><span class="dl">Tips{{ r.tipsInTax ? '' : ' (not in tax)' }}</span><span class="dv val-g">+{{ money(r.tips) }}</span></div>
+            <div class="drow"><span class="dl">Total income</span><span class="dv val-g">{{ money(total(r)) }}</span></div>
+          </ng-container>
+          <div class="drow" *ngIf="r.grossHourly != null"><span class="dl">Rate (income ÷ hrs)</span><span class="dv">{{ money(r.grossHourly) }}/hr</span></div>
+          <div class="drow" *ngIf="r.trueHourly != null"><span class="dl">True hourly (after all)</span><span class="dv" [ngClass]="(r.trueHourly || 0) >= 0 ? 'val-g' : 'val-r'">{{ money(r.trueHourly) }}/hr</span></div>
+        </ng-container>
+
+        <ng-container *ngIf="r.type === 'rehearsal' && (r.hours || 0) > 0">
+          <div class="dsec">Time</div>
+          <div class="drow"><span class="dl">Duration</span><span class="dv">{{ r.hours!.toFixed(2) }} hrs</span></div>
+          <div class="drow"><span class="dl">Cost per hour</span><span class="dv val-a">{{ money((r.trueCosts || 0) / (r.hours || 1)) }}/hr</span></div>
+        </ng-container>
+
+        <ng-container *ngIf="(r.miles || 0) > 0">
+          <div class="dsec">Travel</div>
+          <div class="drow"><span class="dl">Miles</span><span class="dv">{{ r.miles }} mi</span></div>
+          <div class="drow"><span class="dl">Fuel cost</span><span class="dv val-r">{{ money(r.fuelCost) }}</span></div>
+          <div class="drow"><span class="dl">True cost (${{ trueCostRate() }}/mi)</span><span class="dv val-r">{{ money(r.trueCostMiles) }}</span></div>
+          <div class="drow"><span class="dl">IRS deduction (${{ irsRate() }}/mi)</span><span class="dv val-g">{{ money(r.irsDed) }}</span></div>
+        </ng-container>
+
+        <ng-container *ngIf="(r.trueCosts || 0) > 0">
+          <div class="dsec">All costs</div>
+          <div class="drow" *ngIf="(r.toll || 0) > 0"><span class="dl">Tolls</span><span class="dv val-r">{{ money(r.toll) }}</span></div>
+          <div class="drow" *ngIf="(r.meal || 0) > 0"><span class="dl">Meals (50% ded.)</span><span class="dv val-r">{{ money(r.meal) }}</span></div>
+          <div class="drow" *ngIf="(r.room || 0) > 0"><span class="dl">Room rental (100% ded.)</span><span class="dv val-r">{{ money(r.room) }}</span></div>
+          <div class="drow" *ngIf="(r.oth || 0) > 0"><span class="dl">Other: {{ r.otherDesc || 'misc' }}</span><span class="dv val-r">{{ money(r.oth) }}</span></div>
+          <div class="drow"><span class="dl">Total costs</span><span class="dv val-r">{{ money(r.trueCosts) }}</span></div>
+        </ng-container>
+
+        <ng-container *ngIf="r.type === 'income'">
+          <div class="dsec">Taxes (estimated)</div>
+          <div class="drow"><span class="dl">Deductible expenses</span><span class="dv val-g">{{ money(r.totalDed) }}</span></div>
+          <div class="drow"><span class="dl">Tax savings</span><span class="dv val-g">{{ money(r.taxSavings) }}</span></div>
+          <div class="drow"><span class="dl">SE tax (15.3%)</span><span class="dv val-r">{{ money(r.seTax) }}</span></div>
+          <div class="drow"><span class="dl">Income tax ({{ combinedRatePct() }}%)</span><span class="dv val-r">{{ money(r.incomeTax) }}</span></div>
+          <div class="sep" style="margin:4px 0"></div>
+          <div class="drow"><span class="dl">Net after everything</span><span class="dv" [ngClass]="(r.netAfterAll || 0) >= 0 ? 'val-g' : 'val-r'">{{ plusMinus(r.netAfterAll) }}</span></div>
+        </ng-container>
+
+        <ng-container *ngIf="r.notes">
+          <div class="dsec">Notes</div>
+          <div style="font-size:12px;color:var(--t2);line-height:1.5;padding-top:2px">{{ r.notes }}</div>
+        </ng-container>
+      </div>
+
+      <div class="card-acts">
+        <button type="button" class="abt" (click)="toggleExpand(r.id)">{{ expandedId() === r.id ? 'Collapse' : 'Details' }}</button>
+        <button type="button" class="abt abt-edit" (click)="startEdit(r)">Edit</button>
+        <button type="button" class="abt abt-del" (click)="doDelete(r)">Delete</button>
+      </div>
+    </div>
+  </ng-container>
 
   <div class="pager" *ngIf="filteredRecords().length">
-    <button type="button" (click)="prevPage()" [disabled]="page() <= 1">Prev</button>
+    <button type="button" class="fbtn" (click)="prevPage()" [disabled]="page() <= 1">Prev</button>
     <span class="pager-label">Page {{ page() }} of {{ totalPages() }}</span>
-    <button type="button" (click)="nextPage()" [disabled]="page() >= totalPages()">Next</button>
+    <button type="button" class="fbtn" (click)="nextPage()" [disabled]="page() >= totalPages()">Next</button>
   </div>
 
   <ng-template #empty>
-    <p class="empty-state">No records to show.</p>
+    <div class="empty">No records yet.<br />Tap + Add to log your first entry.</div>
   </ng-template>
+
+  <div style="height:88px"></div>
 </div>

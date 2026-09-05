@@ -64,6 +64,49 @@ describe('LogComponent', () => {
     component.records.set([]);
     expect(component.filteredRecords().length).toBe(0);
   });
+
+  it('toggleExpand opens one card at a time and closes on second tap', () => {
+    expect(component.expandedId()).toBeNull();
+    component.toggleExpand('1');
+    expect(component.expandedId()).toBe('1');
+    component.toggleExpand('2');
+    expect(component.expandedId()).toBe('2');
+    component.toggleExpand('2');
+    expect(component.expandedId()).toBeNull();
+  });
+
+  it('cardDate appends the pay date only when it differs from the gig date', () => {
+    const r = component.filteredRecords().find((x) => x.id === '1')!;
+    expect(component.cardDate({ ...r, payDate: '' })).toBe('2/1/26');
+    expect(component.cardDate({ ...r, payDate: '2026-02-01' })).toBe('2/1/26');
+    expect(component.cardDate({ ...r, payDate: '2026-02-20' })).toBe('2/1/26 · paid 2/20/26');
+  });
+});
+
+describe('LogComponent delete', () => {
+  it('doDelete soft-deletes via the db and refreshes the list', async () => {
+    let deleted: string | null = null;
+    let remaining: GigRecord[] = [
+      rec({ id: '1', desc: 'Keep' }),
+      rec({ id: '2', desc: 'Drop' }),
+    ];
+    TestBed.configureTestingModule({ imports: [LogComponent] });
+    const fixture = TestBed.createComponent(LogComponent);
+    const component = fixture.componentInstance;
+    const gigDb = TestBed.inject(GigDbService);
+    gigDb.recsGetAll = async () => remaining;
+    gigDb.recMarkDeleted = async (id: string) => {
+      deleted = id;
+      remaining = remaining.filter((r) => r.id !== id);
+    };
+    (globalThis as { confirm?: () => boolean }).confirm = () => true;
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    await component.doDelete(rec({ id: '2' }));
+    expect(deleted).toBe('2');
+    expect(component.records().map((r) => r.id)).toEqual(['1']);
+  });
 });
 
 describe('LogComponent pagination', () => {
