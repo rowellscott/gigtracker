@@ -22,12 +22,30 @@ describe('GigTracker integration', () => {
   // fixture.whenStable() (zoneless) does not wait for -- so pump real timers
   // between change-detection passes.
   async function settle(): Promise<void> {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       fixture.detectChanges();
       await fixture.whenStable();
-      await new Promise((r) => setTimeout(r, 5));
+      await new Promise((r) => setTimeout(r, 8));
     }
     fixture.detectChanges();
+  }
+
+  /** Poll (pumping change detection) until `predicate` holds or we give up.
+   * The App-level specs drive real IndexedDB reads through zoneless change
+   * detection, so the settle point is "the DOM shows the expected result",
+   * not a fixed number of ticks. */
+  async function waitFor(predicate: () => boolean, label: string): Promise<void> {
+    for (let i = 0; i < 100; i++) {
+      fixture.detectChanges();
+      if (predicate()) {
+        fixture.detectChanges();
+        return;
+      }
+      await fixture.whenStable();
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    fixture.detectChanges();
+    throw new Error(`waitFor timed out: ${label}`);
   }
 
   async function clickTab(tab: string): Promise<void> {
@@ -62,6 +80,7 @@ describe('GigTracker integration', () => {
     fixture = TestBed.createComponent(App);
     await settle();
     await clickTab('log');
+    await waitFor(() => el().querySelectorAll('.card').length === 20, '20 cards on page 1');
 
     expect(el().querySelectorAll('.card').length).toBe(20);
     expect(el().querySelector('.pager-label')!.textContent).toContain('Page 1 of 3');
@@ -69,7 +88,10 @@ describe('GigTracker integration', () => {
     el().querySelector<HTMLButtonElement>('.pager button:last-child')!.click(); // Next
     await settle();
     el().querySelector<HTMLButtonElement>('.pager button:last-child')!.click(); // Next
-    await settle();
+    await waitFor(
+      () => (el().querySelector('.pager-label')?.textContent ?? '').includes('Page 3 of 3'),
+      'on page 3',
+    );
 
     expect(el().querySelector('.pager-label')!.textContent).toContain('Page 3 of 3');
     expect(el().querySelectorAll('.card').length).toBe(5);
@@ -80,6 +102,7 @@ describe('GigTracker integration', () => {
     fixture = TestBed.createComponent(App);
     await settle();
     await clickTab('log');
+    await waitFor(() => !!el().querySelector('.card-acts .abt-edit'), 'log card rendered');
 
     // Tap the card's Edit button.
     const editBtn = Array.from(el().querySelectorAll<HTMLButtonElement>('.card-acts .abt-edit'))[0];
@@ -87,6 +110,10 @@ describe('GigTracker integration', () => {
     await settle();
 
     // We should now be on the Add tab, in edit mode, with the record loaded.
+    await waitFor(
+      () => el().querySelector<HTMLInputElement>('input[name="amount"]')?.value === '250',
+      'edit form populated from the record',
+    );
     expect(el().querySelector('app-add')).toBeTruthy();
     expect(el().querySelector('.edit-banner')).toBeTruthy();
     expect(state.editId()).toBe('edit-me');
@@ -102,6 +129,7 @@ describe('GigTracker integration', () => {
     )!;
     updateBtn.click();
     await settle();
+    await waitFor(() => state.editId() === null, 'edit committed');
 
     const all = await db.recsGetAll();
     expect(all.length).toBe(1);
@@ -116,6 +144,7 @@ describe('GigTracker integration', () => {
 
     fixture = TestBed.createComponent(App);
     await settle(); // starts on Add
+    await waitFor(() => !!el().querySelector('.loc-pick'), 'saved-location chip rendered');
 
     const chip = Array.from(el().querySelectorAll<HTMLButtonElement>('.loc-pick')).find((b) =>
       b.textContent!.includes('The Blue Room'),
@@ -124,7 +153,10 @@ describe('GigTracker integration', () => {
     expect(chip!.textContent).toContain('12.5 mi');
 
     chip!.click();
-    await settle();
+    await waitFor(
+      () => el().querySelector<HTMLInputElement>('input[name="desc"]')?.value === 'The Blue Room',
+      'description filled from the picked location',
+    );
 
     expect(el().querySelector<HTMLInputElement>('input[name="desc"]')!.value).toBe('The Blue Room');
     expect(el().querySelector<HTMLInputElement>('input[name="miles"]')!.value).toBe('12.5');

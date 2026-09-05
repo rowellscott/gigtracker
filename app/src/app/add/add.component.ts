@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GigDbService, GigRecord, SavedLocation, TaxSettings } from '../services/gig-db.service';
@@ -108,20 +108,28 @@ const plusMinus = (n: number): string => (n >= 0 ? '+$' : '-$') + Math.abs(n).to
 
 @Component({
   selector: 'app-add',
-  standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './add.component.html',
-  styleUrls: ['./add.component.css'],
+  styleUrl: './add.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddComponent implements OnInit {
   private db = inject(GigDbService);
   private tax = inject(TaxCalcService);
   private state = inject(AppStateService);
 
+  /** The in-progress record. A plain object rather than a signal: it is
+   * driven by `[(ngModel)]`, whose change events schedule change detection
+   * on their own (that is true in zoneless mode too), and the derived
+   * getters below re-run on that pass. */
   fm: AddForm = blankForm();
-  saving = false;
-  error = '';
-  savedLocations: SavedLocation[] = [];
+
+  /** State that changes outside a template event (after `await`, in
+   * `ngOnInit`) must be a signal so the write itself triggers change
+   * detection under OnPush + zoneless. */
+  readonly saving = signal(false);
+  readonly error = signal('');
+  readonly savedLocations = signal<SavedLocation[]>([]);
 
   /** Non-null while editing an existing record (set from the Log's Edit
    * button via AppStateService). Drives the edit banner + "Update" button. */
@@ -130,7 +138,7 @@ export class AddComponent implements OnInit {
 
   /** User's saved tax settings, so the live preview and the stored
    * calculated fields use the same rates the legacy app does. */
-  settings: Partial<TaxSettings> = {};
+  readonly settings = signal<Partial<TaxSettings>>({});
 
   /** Scratch input for saving a new location -- not part of the GigRecord
    * being built; address is a reference label only (no geocoding, this app
@@ -138,26 +146,21 @@ export class AddComponent implements OnInit {
   locationAddress = '';
 
   async ngOnInit(): Promise<void> {
-    this.savedLocations = await this.db.getSavedLocations();
-    void this.loadSettings();
-
-    const editId = this.state.editId();
-    if (editId && typeof this.db.recGet === 'function') {
-      const rec = await this.db.recGet(editId);
-      if (rec) {
-        this.fm = formFromRecord(rec);
-        this.editId = editId;
-        this.editCreatedAt = rec.createdAt;
-      } else {
-        this.state.clearEdit();
-      }
+    const rec = this.state.editRecord();
+    if (rec) {
+      this.fm = formFromRecord(rec);
+      this.editId = rec.id;
+      this.editCreatedAt = rec.createdAt;
     }
+
+    this.savedLocations.set(await this.db.getSavedLocations());
+    void this.loadSettings();
   }
 
   private async loadSettings(): Promise<void> {
     try {
       if (typeof this.db.kvGet === 'function') {
-        this.settings = (await this.db.kvGet<TaxSettings>('appSettings')) ?? {};
+        this.settings.set((await this.db.kvGet<TaxSettings>('appSettings')) ?? {});
       }
     } catch {
       /* defaults are fine */
@@ -181,16 +184,18 @@ export class AddComponent implements OnInit {
    * now as a reusable location (upserts by name). */
   async saveCurrentLocation(): Promise<void> {
     const miles = parseFloat(this.fm.miles);
-    this.savedLocations = await this.db.saveSavedLocation({
-      name: this.fm.desc,
-      address: this.locationAddress,
-      miles: isNaN(miles) ? undefined : miles,
-    });
+    this.savedLocations.set(
+      await this.db.saveSavedLocation({
+        name: this.fm.desc,
+        address: this.locationAddress,
+        miles: isNaN(miles) ? undefined : miles,
+      }),
+    );
     this.locationAddress = '';
   }
 
   async removeLocation(name: string): Promise<void> {
-    this.savedLocations = await this.db.removeSavedLocation(name);
+    this.savedLocations.set(await this.db.removeSavedLocation(name));
   }
 
   get calcInput(): CalcInput {
@@ -217,20 +222,22 @@ export class AddComponent implements OnInit {
   }
 
   get calc(): CalcResult {
-    return this.tax.calc(this.calcInput, this.settings);
+    return this.tax.calc(this.calcInput, this.settings());
   }
 
   /** Ported from upPrev() in the legacy app -- same rows, same order, same
-   * value formatting and colour classes. Plain getter: AddComponent uses
-   * default change detection, so it re-runs whenever a field changes. */
+   * value formatting and colour classes. A getter, not a computed: its
+   * inputs are `fm` (a plain object) and the `settings` signal, and it is
+   * re-read on the change-detection pass that every `[(ngModel)]` edit
+   * schedules. */
   get preview(): PreviewItem[] {
     const f = this.fm;
     const isI = f.type === 'income';
     const isR = f.type === 'rehearsal';
     const p = this.calc;
-    const irsRate = this.settings.irsRate ?? 0.725;
-    const fedR = Number(this.settings.federalRate ?? 24);
-    const stR = Number(this.settings.stateRate ?? 0);
+    const irsRate = this.settings().irsRate ?? 0.725;
+    const fedR = Number(this.settings().federalRate ?? 24);
+    const stR = Number(this.settings().stateRate ?? 0);
     const hasIncome = (parseFloat(f.amount) || 0) > 0 || p.tips > 0;
     if (!hasIncome && !p.trueCosts && !p.hours) return [];
 
@@ -266,7 +273,7 @@ export class AddComponent implements OnInit {
   }
 
   get canSave(): boolean {
-    return this.fm.desc.trim().length > 0 && !this.saving;
+    return this.fm.desc.trim().length > 0 && !this.saving();
   }
 
   get saveLabel(): string {
@@ -339,7 +346,7 @@ export class AddComponent implements OnInit {
     this.editId = null;
     this.editCreatedAt = undefined;
     this.locationAddress = '';
-    this.error = '';
+    this.error.set('');
   }
 
   cancelEdit(): void {
@@ -349,12 +356,12 @@ export class AddComponent implements OnInit {
   }
 
   async save(): Promise<void> {
-    this.error = '';
+    this.error.set('');
     if (!this.fm.desc.trim()) {
-      this.error = 'Description is required.';
+      this.error.set('Description is required.');
       return;
     }
-    this.saving = true;
+    this.saving.set(true);
     try {
       await this.db.recSave(this.buildRecord());
       this.state.clearEdit();
@@ -362,9 +369,9 @@ export class AddComponent implements OnInit {
       // Legacy saveRec() drops you back on the Log after saving.
       this.state.goTab('log');
     } catch {
-      this.error = 'Save failed.';
+      this.error.set('Save failed.');
     } finally {
-      this.saving = false;
+      this.saving.set(false);
     }
   }
 }

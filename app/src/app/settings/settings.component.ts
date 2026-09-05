@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GigDbService } from '../services/gig-db.service';
 
@@ -199,6 +199,8 @@ export class SettingsComponent {
     return `${new Date(last).toLocaleDateString()} (${this.recordCount()} records)`;
   });
 
+  private cdr = inject(ChangeDetectorRef);
+
   constructor() {
     void this.load();
   }
@@ -211,6 +213,9 @@ export class SettingsComponent {
     this.lastBackupAt.set((await this.db.kvGet<string>('lastBackupAt')) as string | null);
     const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
     this.recordCount.set((recs || []).length);
+    // `cfg` is a plain object (it backs `[(ngModel)]`), so this async write
+    // needs an explicit nudge -- the signals above schedule their own.
+    this.cdr.markForCheck();
   }
 
   async saveSettings(): Promise<void> {

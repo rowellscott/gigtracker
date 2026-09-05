@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
+import { GigRecord } from './gig-db.service';
 
 export type Tab = 'add' | 'log' | 'summary' | 'settings';
 
@@ -15,22 +16,27 @@ export class AppStateService {
   /** Which tab is showing. Starts on Add, exactly like the legacy app. */
   readonly activeTab = signal<Tab>('add');
 
-  /** Id of the record currently being edited in the Add form, or null for
-   * a fresh entry. Set by the Log's Edit button, cleared on save/cancel. */
-  readonly editId = signal<string | null>(null);
+  /** The record currently open for editing in the Add form, or null for a
+   * fresh entry. The Log passes the whole record (it already has it in
+   * hand), so the Add form populates synchronously -- no re-fetch. */
+  readonly editRecord = signal<GigRecord | null>(null);
+
+  /** Id of the record being edited, or null. Convenience view of
+   * `editRecord` for templates and callers that only need the id. */
+  readonly editId = computed(() => this.editRecord()?.id ?? null);
 
   goTab(tab: Tab): void {
     this.activeTab.set(tab);
   }
 
   /** Log -> Add: open the given record for editing. */
-  startEdit(id: string): void {
-    this.editId.set(id);
+  startEdit(record: GigRecord): void {
+    this.editRecord.set(record);
     this.activeTab.set('add');
   }
 
   /** Add -> done: drop edit mode (save or cancel both call this). */
   clearEdit(): void {
-    this.editId.set(null);
+    this.editRecord.set(null);
   }
 }

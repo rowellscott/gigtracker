@@ -64,7 +64,7 @@ describe('AddComponent', () => {
     cmp.fm.desc = '   ';
     await cmp.save();
     expect(saved.length).toBe(0);
-    expect(cmp.error).toBeTruthy();
+    expect(cmp.error()).toBeTruthy();
   });
 
   it('persists calculated fields matching TaxCalcService output', async () => {
@@ -120,7 +120,7 @@ describe('AddComponent', () => {
 
   describe('saved locations', () => {
     it('loads saved locations on init', () => {
-      expect(cmp.savedLocations).toEqual([
+      expect(cmp.savedLocations()).toEqual([
         { name: 'Ace Venue', miles: 3 },
         { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
       ]);
@@ -143,7 +143,7 @@ describe('AddComponent', () => {
       cmp.fm.miles = '12.5';
       cmp.locationAddress = '99 Oak Ave';
       await cmp.saveCurrentLocation();
-      expect(cmp.savedLocations).toEqual([
+      expect(cmp.savedLocations()).toEqual([
         { name: 'Ace Venue', miles: 3 },
         { name: 'New Venue', address: '99 Oak Ave', miles: 12.5 },
         { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
@@ -151,27 +151,27 @@ describe('AddComponent', () => {
       expect(cmp.locationAddress).toBe(''); // scratch input clears after saving
 
       await cmp.saveCurrentLocation(); // same desc again -- must update, not duplicate
-      expect(cmp.savedLocations.filter((l) => l.name === 'New Venue').length).toBe(1);
+      expect(cmp.savedLocations().filter((l) => l.name === 'New Venue').length).toBe(1);
     });
 
     it('saving with no mileage entered omits miles rather than storing NaN/0', async () => {
       cmp.fm.desc = 'Unknown Distance Gig';
       cmp.fm.miles = '';
       await cmp.saveCurrentLocation();
-      const loc = cmp.savedLocations.find((l) => l.name === 'Unknown Distance Gig');
+      const loc = cmp.savedLocations().find((l) => l.name === 'Unknown Distance Gig');
       expect(loc).toEqual({ name: 'Unknown Distance Gig' });
     });
 
     it('does not save a blank description as a location', async () => {
       cmp.fm.desc = '   ';
       await cmp.saveCurrentLocation();
-      expect(cmp.savedLocations.map((l) => l.name)).toEqual(['Ace Venue', 'The Cellar']);
+      expect(cmp.savedLocations().map((l) => l.name)).toEqual(['Ace Venue', 'The Cellar']);
     });
 
     it('removes a saved location without touching the current description', async () => {
       cmp.fm.desc = 'Club gig';
       await cmp.removeLocation('The Cellar');
-      expect(cmp.savedLocations).toEqual([{ name: 'Ace Venue', miles: 3 }]);
+      expect(cmp.savedLocations()).toEqual([{ name: 'Ace Venue', miles: 3 }]);
       expect(cmp.fm.desc).toBe('Club gig');
     });
   });
@@ -201,14 +201,13 @@ describe('AddComponent edit mode', () => {
     deleted: false,
   };
 
-  async function mount(editId: string | null): Promise<void> {
+  async function mount(edit: GigRecord | null): Promise<void> {
     saved = [];
     const dbStub = {
       recSave: (r: GigRecord) => {
         saved.push(r);
         return Promise.resolve();
       },
-      recGet: (id: string) => Promise.resolve(id === existing.id ? { ...existing } : undefined),
       kvGet: () => Promise.resolve(null),
       getSavedLocations: () => Promise.resolve([]),
       saveSavedLocation: () => Promise.resolve([]),
@@ -219,7 +218,7 @@ describe('AddComponent edit mode', () => {
       providers: [{ provide: GigDbService, useValue: dbStub }],
     }).compileComponents();
     const state = TestBed.inject(AppStateService);
-    if (editId) state.startEdit(editId);
+    if (edit) state.startEdit(edit);
     fixture = TestBed.createComponent(AddComponent);
     cmp = fixture.componentInstance;
     fixture.detectChanges();
@@ -227,7 +226,7 @@ describe('AddComponent edit mode', () => {
   }
 
   it('loads the record into the form when AppStateService has an editId', async () => {
-    await mount('rec-42');
+    await mount(existing);
     expect(cmp.editId).toBe('rec-42');
     expect(cmp.fm.desc).toBe('Wedding set');
     expect(cmp.fm.amount).toBe('800');
@@ -238,7 +237,7 @@ describe('AddComponent edit mode', () => {
   });
 
   it('saving an edit writes back to the SAME id and preserves createdAt', async () => {
-    await mount('rec-42');
+    await mount(existing);
     cmp.fm.amount = '900';
     await cmp.save();
     expect(saved.length).toBe(1);
@@ -250,7 +249,7 @@ describe('AddComponent edit mode', () => {
   });
 
   it('cancelEdit drops edit state without saving and returns to the log', async () => {
-    await mount('rec-42');
+    await mount(existing);
     cmp.fm.amount = '5';
     cmp.cancelEdit();
     expect(saved.length).toBe(0);

@@ -79,7 +79,7 @@ export class LogComponent implements OnInit {
   }
 
   startEdit(r: GigRecord): void {
-    this.state.startEdit(r.id);
+    this.state.startEdit(r);
   }
 
   async doDelete(r: GigRecord): Promise<void> {

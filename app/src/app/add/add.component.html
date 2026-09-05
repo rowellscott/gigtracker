@@ -32,9 +32,9 @@
   </label>
   <p class="note">Whatever's in Miles below when you tap ★ is saved with the location, so picking it later fills in both.</p>
 
-  <div class="loc-row" *ngIf="savedLocations.length">
+  <div class="loc-row" *ngIf="savedLocations().length">
     <span class="note" style="width:100%;margin:0">Saved locations — tap to fill description + miles:</span>
-    <span class="loc-chip" *ngFor="let loc of savedLocations">
+    <span class="loc-chip" *ngFor="let loc of savedLocations()">
       <button type="button" class="loc-pick" [title]="loc.address || ''" (click)="pickLocation(loc)">
         {{ loc.name }}<span class="loc-miles" *ngIf="loc.miles != null">· {{ loc.miles }} mi</span>
       </button>
@@ -133,7 +133,7 @@
     </ng-container>
   </div>
 
-  <p class="callout c-warn" *ngIf="error">{{ error }}</p>
+  <p class="callout c-warn" *ngIf="error()">{{ error() }}</p>
 
   <button type="button" class="btn"
     [class.btn-i]="fm.type === 'income'" [class.btn-r]="fm.type === 'rehearsal'" [class.btn-e]="fm.type === 'expense'"
