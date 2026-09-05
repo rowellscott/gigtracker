@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { GigDbService, GigRecord } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
@@ -14,62 +21,67 @@ const sum = (arr: readonly GigRecord[], key: NumericKey<GigRecord>): number =>
 
 @Component({
   selector: 'app-summary',
-  standalone: true,
   imports: [DecimalPipe],
   templateUrl: './summary.component.html',
   styleUrl: './summary.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SummaryComponent implements OnInit {
-  private gigDb = inject(GigDbService);
+  private readonly gigDb = inject(GigDbService);
   readonly taxSettings = inject(TaxSettingsService);
 
-  records = signal<GigRecord[]>([]);
-  openAcc = signal<Set<string>>(new Set(['taxes']));
+  readonly records = signal<GigRecord[]>([]);
+  readonly openAcc = signal<Set<string>>(new Set(['taxes']));
 
   readonly year = String(new Date().getFullYear());
 
-  yearRecords = computed(() =>
+  readonly yearRecords = computed(() =>
     this.records().filter((r) => r.date && r.date.startsWith(this.year)),
   );
-  private incomeR = computed(() => this.yearRecords().filter((r) => r.type === 'income'));
-  private rehearsalR = computed(() => this.yearRecords().filter((r) => r.type === 'rehearsal'));
-  private expenseR = computed(() => this.yearRecords().filter((r) => r.type === 'expense'));
+  private readonly incomeR = computed(() => this.yearRecords().filter((r) => r.type === 'income'));
+  private readonly rehearsalR = computed(() =>
+    this.yearRecords().filter((r) => r.type === 'rehearsal'),
+  );
+  private readonly expenseR = computed(() =>
+    this.yearRecords().filter((r) => r.type === 'expense'),
+  );
 
-  grossIncome = computed(() => sum(this.incomeR(), 'amount'));
-  totalTips = computed(() => sum(this.incomeR(), 'tips'));
-  totalIncome = computed(() => this.grossIncome() + this.totalTips());
+  readonly grossIncome = computed(() => sum(this.incomeR(), 'amount'));
+  readonly totalTips = computed(() => sum(this.incomeR(), 'tips'));
+  readonly totalIncome = computed(() => this.grossIncome() + this.totalTips());
 
-  gigCosts = computed(() => sum(this.incomeR(), 'trueCosts'));
-  rehCosts = computed(() => sum(this.rehearsalR(), 'trueCosts'));
+  readonly gigCosts = computed(() => sum(this.incomeR(), 'trueCosts'));
+  readonly rehCosts = computed(() => sum(this.rehearsalR(), 'trueCosts'));
   // Legacy: an expense-only record's cost is its `amount`, not `trueCosts`.
-  expCosts = computed(() => sum(this.expenseR(), 'amount'));
+  readonly expCosts = computed(() => sum(this.expenseR(), 'amount'));
   /** Every business cost for the year -- matches allCosts in the legacy renderSummary(). */
-  totalCosts = computed(() => this.gigCosts() + this.rehCosts() + this.expCosts());
+  readonly totalCosts = computed(() => this.gigCosts() + this.rehCosts() + this.expCosts());
 
-  totalDed = computed(() => sum(this.yearRecords(), 'totalDed'));
-  seTax = computed(() => sum(this.incomeR(), 'seTax'));
-  incomeTax = computed(() => sum(this.incomeR(), 'incomeTax'));
-  totalTax = computed(() => this.seTax() + this.incomeTax());
-  taxSavings = computed(() => sum(this.yearRecords(), 'taxSavings'));
+  readonly totalDed = computed(() => sum(this.yearRecords(), 'totalDed'));
+  readonly seTax = computed(() => sum(this.incomeR(), 'seTax'));
+  readonly incomeTax = computed(() => sum(this.incomeR(), 'incomeTax'));
+  readonly totalTax = computed(() => this.seTax() + this.incomeTax());
+  readonly taxSavings = computed(() => sum(this.yearRecords(), 'taxSavings'));
 
-  miles = computed(() => sum(this.yearRecords(), 'miles'));
-  gigHours = computed(() => sum(this.incomeR(), 'hours'));
-  rehHours = computed(() => sum(this.rehearsalR(), 'hours'));
-  totalHours = computed(() => this.gigHours() + this.rehHours());
+  readonly miles = computed(() => sum(this.yearRecords(), 'miles'));
+  readonly gigHours = computed(() => sum(this.incomeR(), 'hours'));
+  readonly rehHours = computed(() => sum(this.rehearsalR(), 'hours'));
+  readonly totalHours = computed(() => this.gigHours() + this.rehHours());
 
-  net = computed(() => this.totalIncome() - this.totalCosts() - this.totalTax());
-  realHourly = computed(() => (this.totalHours() > 0 ? this.net() / this.totalHours() : null));
+  readonly net = computed(() => this.totalIncome() - this.totalCosts() - this.totalTax());
+  readonly realHourly = computed(() =>
+    this.totalHours() > 0 ? this.net() / this.totalHours() : null,
+  );
 
-  incomeGigs = computed(() => this.incomeR());
+  readonly incomeGigs = computed(() => this.incomeR());
 
   private pct(v: number): number {
     const ti = this.totalIncome();
     return ti > 0 ? Math.max(0, Math.min(100, (v / ti) * 100)) : 0;
   }
-  costPct = computed(() => this.pct(this.totalCosts()));
-  taxPct = computed(() => this.pct(this.totalTax()));
-  keptPct = computed(() => this.pct(Math.max(0, this.net())));
+  readonly costPct = computed(() => this.pct(this.totalCosts()));
+  readonly taxPct = computed(() => this.pct(this.totalTax()));
+  readonly keptPct = computed(() => this.pct(Math.max(0, this.net())));
 
   async ngOnInit(): Promise<void> {
     this.records.set(await this.gigDb.recsGetAll());

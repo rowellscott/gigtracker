@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { AddComponent } from './add/add.component';
 import { LogComponent } from './log/log.component';
 import { SummaryComponent } from './summary/summary.component';
@@ -16,13 +23,14 @@ type BackupState = 'ok' | 'warn' | 'never';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  private state = inject(AppStateService);
-  private db = inject(GigDbService);
+  private readonly state = inject(AppStateService);
+  private readonly db = inject(GigDbService);
 
   protected readonly activeTab = this.state.activeTab;
-  protected readonly editing = computed(() => this.state.editId() !== null);
   protected readonly backup = signal<BackupState>('never');
   protected readonly backupTitle = signal('No backup yet — export from Settings');
+
+  protected readonly editing = computed(() => this.state.editId() !== null);
 
   constructor() {
     // Re-check the backup-reminder dot on every tab change, the same way the

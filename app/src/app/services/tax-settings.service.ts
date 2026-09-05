@@ -1,4 +1,4 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { GigDbService, TaxSettings } from './gig-db.service';
 
 const APP_SETTINGS_KEY = 'appSettings';
@@ -22,10 +22,10 @@ const DEFAULTS: TaxSettings = {
  */
 @Injectable({ providedIn: 'root' })
 export class TaxSettingsService {
-  private db = inject(GigDbService);
+  private readonly db = inject(GigDbService);
 
   private readonly _settings = signal<TaxSettings>(DEFAULTS);
-  readonly settings: Signal<TaxSettings> = this._settings.asReadonly();
+  readonly settings = this._settings.asReadonly();
 
   readonly irsRate = computed(() => this._settings().irsRate);
   readonly trueCostRate = computed(() => this._settings().trueCostRate);

@@ -1,5 +1,9 @@
 # App
 
+The Angular 21 rewrite of GigTracker. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the
+IndexedDB data layer (shared with the legacy PWA), the tax services, cross-tab
+state, and the `/gigtracker/preview/` deployment.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.23.
 
 ## Development server

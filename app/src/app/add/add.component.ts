@@ -99,9 +99,7 @@ export function formFromRecord(rec: GigRecord): AddForm {
   };
 }
 
-export type PreviewItem =
-  | { kind: 'row'; l: string; v: string; cls: string }
-  | { kind: 'sep' };
+export type PreviewItem = { kind: 'row'; l: string; v: string; cls: string } | { kind: 'sep' };
 
 const money = (n: number): string => '$' + Math.abs(n ?? 0).toFixed(2);
 const plusMinus = (n: number): string => (n >= 0 ? '+$' : '-$') + Math.abs(n).toFixed(2);
@@ -114,10 +112,10 @@ const plusMinus = (n: number): string => (n >= 0 ? '+$' : '-$') + Math.abs(n).to
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddComponent implements OnInit {
-  private db = inject(GigDbService);
-  private tax = inject(TaxCalcService);
-  private taxSettings = inject(TaxSettingsService);
-  private state = inject(AppStateService);
+  private readonly db = inject(GigDbService);
+  private readonly tax = inject(TaxCalcService);
+  private readonly taxSettings = inject(TaxSettingsService);
+  private readonly state = inject(AppStateService);
 
   /** The in-progress record. A plain object rather than a signal: it is
    * driven by `[(ngModel)]`, whose change events schedule change detection
@@ -249,7 +247,10 @@ export class AddComponent implements OnInit {
       rows.push({ kind: 'sep' });
       row('Net after costs + taxes', plusMinus(p.netAfterAll), p.netAfterAll >= 0 ? 'g' : 'r');
       if (p.grossHourly !== null && p.hours > 0)
-        row('Rate (auto)', `${money(p.grossHourly)}/hr gross — ${plusMinus(p.trueHourly ?? 0)}/hr true`);
+        row(
+          'Rate (auto)',
+          `${money(p.grossHourly)}/hr gross — ${plusMinus(p.trueHourly ?? 0)}/hr true`,
+        );
     }
     if (isR && p.hours > 0) {
       rows.push({ kind: 'sep' });

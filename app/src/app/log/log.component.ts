@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
 import { GigDbService, GigRecord } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
 import { AppStateService } from '../services/app-state.service';
@@ -9,38 +16,37 @@ const PAGE_SIZE = 20;
 
 @Component({
   selector: 'app-log',
-  standalone: true,
   templateUrl: './log.component.html',
   styleUrl: './log.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LogComponent implements OnInit {
-  private gigDb = inject(GigDbService);
-  private state = inject(AppStateService);
+  private readonly gigDb = inject(GigDbService);
+  private readonly state = inject(AppStateService);
   readonly taxSettings = inject(TaxSettingsService);
 
   readonly pageSize = PAGE_SIZE;
 
-  records = signal<GigRecord[]>([]);
-  filter = signal<LogFilter>('all');
-  page = signal(1);
-  expandedId = signal<string | null>(null);
+  readonly records = signal<GigRecord[]>([]);
+  readonly filter = signal<LogFilter>('all');
+  readonly page = signal(1);
+  readonly expandedId = signal<string | null>(null);
 
   readonly editId = this.state.editId;
 
-  filteredRecords = computed(() => {
+  readonly filteredRecords = computed(() => {
     const f = this.filter();
     const recs = this.records();
     return f === 'all' ? recs : recs.filter((r) => r.type === f);
   });
 
-  totalPages = computed(() =>
+  readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.filteredRecords().length / PAGE_SIZE)),
   );
 
   // Long lists were the actual reason the tab bar felt unreachable --
   // pagination keeps each page short instead of one endless scroll.
-  pagedRecords = computed(() => {
+  readonly pagedRecords = computed(() => {
     const start = (this.page() - 1) * PAGE_SIZE;
     return this.filteredRecords().slice(start, start + PAGE_SIZE);
   });

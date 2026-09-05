@@ -27,10 +27,31 @@ export interface SettingsTaxConfig {
 export type ExportRecord = Readonly<
   Pick<
     GigRecord,
-    | 'id' | 'date' | 'payDate' | 'type' | 'desc' | 'amount' | 'tips' | 'tipsInTax'
-    | 'hours' | 'grossHourly' | 'miles' | 'irsDed' | 'room' | 'meal' | 'oth'
-    | 'trueCosts' | 'totalDed' | 'taxSavings' | 'seTax' | 'incomeTax'
-    | 'netAfterAll' | 'trueHourly' | 'payMethod' | 'notes' | 'updatedAt'
+    | 'id'
+    | 'date'
+    | 'payDate'
+    | 'type'
+    | 'desc'
+    | 'amount'
+    | 'tips'
+    | 'tipsInTax'
+    | 'hours'
+    | 'grossHourly'
+    | 'miles'
+    | 'irsDed'
+    | 'room'
+    | 'meal'
+    | 'oth'
+    | 'trueCosts'
+    | 'totalDed'
+    | 'taxSavings'
+    | 'seTax'
+    | 'incomeTax'
+    | 'netAfterAll'
+    | 'trueHourly'
+    | 'payMethod'
+    | 'notes'
+    | 'updatedAt'
   >
 >;
 
@@ -180,28 +201,26 @@ export function mergeImportedRecords(
 
 @Component({
   selector: 'app-settings',
-  standalone: true,
   imports: [FormsModule],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsComponent {
-  private db = inject(GigDbService);
-  private taxSettings = inject(TaxSettingsService);
+  private readonly db = inject(GigDbService);
+  private readonly taxSettings = inject(TaxSettingsService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   cfg: SettingsTaxConfig = { ...DEFAULT_TAX_SETTINGS };
-  lastBackupAt = signal<string | null>(null);
-  recordCount = signal<number>(0);
-  status = signal<string>('');
+  readonly lastBackupAt = signal<string | null>(null);
+  readonly recordCount = signal<number>(0);
+  readonly status = signal<string>('');
 
   readonly lastBackupLabel = computed(() => {
     const last = this.lastBackupAt();
     if (!last) return 'Never';
     return `${new Date(last).toLocaleDateString()} (${this.recordCount()} records)`;
   });
-
-  private cdr = inject(ChangeDetectorRef);
 
   constructor() {
     void this.load();
