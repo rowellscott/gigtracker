@@ -66,8 +66,14 @@ body {
 app-root {
   max-width: 480px;
   margin: 0 auto;
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* The legacy #app is a plain <div> in a height:100% body, so it stays
+     viewport-tall and .content (flex:1, overflow-y:auto) is the scroller.
+     app-root is a custom element and grows to its content instead unless
+     given a definite height -- without this the sticky topbar scrolls away
+     and the bottom tab bar isn't pinned. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--bg);
   display: flex;
   flex-direction: column;
