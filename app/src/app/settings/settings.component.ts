@@ -7,12 +7,14 @@ import {
   computed,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { GigDbService } from '../services/gig-db.service';
+import { GigDbService, GigRecord } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
 
 /**
- * Local structural types. Intentionally NOT imported from the services so
- * this component cannot break the build if those type names/shapes shift.
+ * `SettingsTaxConfig` is the settings form's model shape. `ExportRecord` is the
+ * precise subset of `GigRecord` the pure helpers below read -- derived from the
+ * real record type so the call sites (which pass `GigRecord[]` straight from
+ * `recsGetAll()`) type-check without a cast.
  */
 export interface SettingsTaxConfig {
   federalRate: number;
@@ -22,34 +24,15 @@ export interface SettingsTaxConfig {
   mpg: number;
 }
 
-export interface CsvRecord {
-  id?: string;
-  date?: string;
-  payDate?: string;
-  type?: string;
-  desc?: string;
-  amount?: number;
-  tips?: number;
-  tipsInTax?: boolean;
-  hours?: number;
-  grossHourly?: number | null;
-  miles?: number;
-  irsDed?: number;
-  room?: number;
-  meal?: number;
-  oth?: number;
-  trueCosts?: number;
-  totalDed?: number;
-  taxSavings?: number;
-  seTax?: number;
-  incomeTax?: number;
-  netAfterAll?: number;
-  trueHourly?: number | null;
-  payMethod?: string;
-  notes?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
+export type ExportRecord = Readonly<
+  Pick<
+    GigRecord,
+    | 'id' | 'date' | 'payDate' | 'type' | 'desc' | 'amount' | 'tips' | 'tipsInTax'
+    | 'hours' | 'grossHourly' | 'miles' | 'irsDed' | 'room' | 'meal' | 'oth'
+    | 'trueCosts' | 'totalDed' | 'taxSavings' | 'seTax' | 'incomeTax'
+    | 'netAfterAll' | 'trueHourly' | 'payMethod' | 'notes' | 'updatedAt'
+  >
+>;
 
 export const DEFAULT_TAX_SETTINGS: SettingsTaxConfig = {
   federalRate: 24,
@@ -101,10 +84,9 @@ const n1 = (v: number | undefined | null): string => (Number(v) || 0).toFixed(1)
 
 /** PURE: records -> legacy CSV text (header row + one row per record),
  * matching exportCSV() in index.html column-for-column. */
-export function recordsToCsv(records: CsvRecord[]): string {
-  const list = records || [];
+export function recordsToCsv(records: readonly ExportRecord[]): string {
   const lines: string[] = [CSV_COLUMNS.join(',')];
-  for (const r of list) {
+  for (const r of records) {
     const ti = (Number(r.amount) || 0) + (Number(r.tips) || 0);
     lines.push(
       [
@@ -140,45 +122,55 @@ export function recordsToCsv(records: CsvRecord[]): string {
 
 /** PURE: records + config -> JSON backup payload (matches exportJSON()). */
 export function recordsToBackup(
-  records: CsvRecord[],
+  records: readonly ExportRecord[],
   cfg: SettingsTaxConfig,
-): { exportedAt: string; appVersion: string; taxConfig: SettingsTaxConfig; records: CsvRecord[] } {
+): {
+  exportedAt: string;
+  appVersion: string;
+  taxConfig: SettingsTaxConfig;
+  records: readonly ExportRecord[];
+} {
   return {
     exportedAt: new Date().toISOString(),
     appVersion: '2.0',
     taxConfig: cfg,
-    records: records || [],
+    records,
   };
 }
 
+/** An imported entry we can safely persist: a backup is produced by
+ * `recordsToBackup` from full records, so an `id` + `type` is enough to treat
+ * the rest of the object as a `GigRecord`. */
+function isImportedRecord(value: unknown): value is GigRecord {
+  if (!value || typeof value !== 'object') return false;
+  const rec = value as Partial<GigRecord>;
+  return typeof rec.id === 'string' && rec.id.length > 0 && !!rec.type;
+}
+
 /** PURE: merge imported records into existing ones (newer updatedAt wins,
- * ties go to the incoming record -- restore behaviour, matches importJSON()). */
+ * ties go to the incoming record -- restore behaviour, matches importJSON()).
+ * `imported` is whatever `JSON.parse` produced, so each entry is validated
+ * before use. */
 export function mergeImportedRecords(
-  existing: CsvRecord[],
-  imported: CsvRecord[],
-): { toSave: CsvRecord[]; skipped: number } {
-  const byId = new Map<string, CsvRecord>();
-  for (const r of existing || []) {
-    if (r && typeof r.id === 'string' && r.id) byId.set(r.id, r);
+  existing: readonly ExportRecord[],
+  imported: readonly unknown[],
+): { toSave: GigRecord[]; skipped: number } {
+  const lastSeenAt = new Map<string, string>();
+  for (const r of existing) {
+    if (r.id) lastSeenAt.set(r.id, r.updatedAt ?? '');
   }
-  const toSave: CsvRecord[] = [];
+  const toSave: GigRecord[] = [];
   let skipped = 0;
-  for (const inc of imported || []) {
-    if (!inc || typeof inc.id !== 'string' || !inc.id || !inc.type) {
+  for (const inc of imported) {
+    if (!isImportedRecord(inc)) {
       skipped++;
       continue;
     }
-    const cur = byId.get(inc.id);
-    if (!cur) {
+    const seenAt = lastSeenAt.get(inc.id);
+    const incAt = inc.updatedAt ?? '';
+    if (seenAt === undefined || incAt >= seenAt) {
       toSave.push(inc);
-      byId.set(inc.id, inc);
-      continue;
-    }
-    const incAt = inc.updatedAt || '';
-    const curAt = cur.updatedAt || '';
-    if (incAt >= curAt) {
-      toSave.push(inc);
-      byId.set(inc.id, inc);
+      lastSeenAt.set(inc.id, incAt);
     } else {
       skipped++;
     }
@@ -218,9 +210,8 @@ export class SettingsComponent {
   async load(): Promise<void> {
     await this.taxSettings.reload();
     this.cfg = { ...this.taxSettings.settings() };
-    this.lastBackupAt.set((await this.db.kvGet<string>('lastBackupAt')) as string | null);
-    const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
-    this.recordCount.set((recs || []).length);
+    this.lastBackupAt.set(await this.db.kvGet<string>('lastBackupAt'));
+    this.recordCount.set((await this.db.recsGetAll()).length);
     // `cfg` is a plain object (it backs `[(ngModel)]`), so this async write
     // needs an explicit nudge -- the signals above schedule their own.
     this.cdr.markForCheck();
@@ -271,8 +262,8 @@ export class SettingsComponent {
   }
 
   async exportCsv(): Promise<void> {
-    const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
-    if (!recs || recs.length === 0) {
+    const recs = await this.db.recsGetAll();
+    if (recs.length === 0) {
       this.status.set('No records to export.');
       return;
     }
@@ -282,8 +273,7 @@ export class SettingsComponent {
   }
 
   async exportJson(): Promise<void> {
-    const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
-    const payload = recordsToBackup(recs || [], this.cfg);
+    const payload = recordsToBackup(await this.db.recsGetAll(), this.cfg);
     this.download(
       JSON.stringify(payload, null, 2),
       `gigtracker_backup_${this.stamp()}.json`,
@@ -305,14 +295,17 @@ export class SettingsComponent {
       reader.onload = () => {
         void (async () => {
           try {
-            const parsed = JSON.parse(String(reader.result || '{}'));
-            const imported: CsvRecord[] = Array.isArray(parsed)
+            const parsed: unknown = JSON.parse(String(reader.result ?? '{}'));
+            const nested = (parsed as { records?: unknown } | null)?.records;
+            const imported: readonly unknown[] = Array.isArray(parsed)
               ? parsed
-              : (parsed && parsed.records) || [];
-            const existing = (await this.db.recsGetAll()) as unknown as CsvRecord[];
-            const { toSave, skipped } = mergeImportedRecords(existing || [], imported);
+              : Array.isArray(nested)
+                ? nested
+                : [];
+            const existing = await this.db.recsGetAll();
+            const { toSave, skipped } = mergeImportedRecords(existing, imported);
             for (const rec of toSave) {
-              await this.db.recSave({ ...rec, synced: true } as never);
+              await this.db.recSave({ ...rec, synced: true });
             }
             this.status.set(`Restored ${toSave.length} record(s), skipped ${skipped}.`);
             await this.markBackedUp();

@@ -15,6 +15,11 @@ export interface CalcInput {
   start?: string; end?: string;
 }
 
+/** Tax-rate settings as calc() reads them. Values may still be strings here
+ * (raw form input, or an older stored config), so calc() coerces each one --
+ * the same tolerance CalcInput gives the gig fields. */
+export type CalcSettings = Partial<Record<keyof TaxSettings, string | number>>;
+
 export interface CalcResult {
   hours: number;
   fuelCost: number;
@@ -49,7 +54,7 @@ export interface CalcResult {
  */
 @Injectable({ providedIn: 'root' })
 export class TaxCalcService {
-  calc(fm: CalcInput, s: Partial<TaxSettings>): CalcResult {
+  calc(fm: CalcInput, s: CalcSettings): CalcResult {
     const num = (v: string | number | undefined) =>
       typeof v === 'number' ? v : parseFloat(v ?? '') || 0;
 

@@ -75,7 +75,7 @@ export function formFromRecord(rec: GigRecord): AddForm {
   return {
     date: rec.date || todayStr(),
     payDate: rec.payDate || '',
-    type: (rec.type as GigType) || 'income',
+    type: rec.type || 'income',
     desc: rec.desc || '',
     amount: s(rec.amount),
     payMethod: rec.payMethod || '',
@@ -274,9 +274,9 @@ export class AddComponent implements OnInit {
   buildRecord(): GigRecord {
     const f = this.fm;
     const c = this.calc;
-    const num = (v: string) => {
-      const n = parseFloat(v);
-      return isNaN(n) ? 0 : n;
+    const num = (v: string): number => {
+      const n = Number(v);
+      return Number.isNaN(n) ? 0 : n;
     };
     return {
       id: this.editId ?? crypto.randomUUID(),

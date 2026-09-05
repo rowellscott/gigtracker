@@ -3,7 +3,13 @@ import { DecimalPipe } from '@angular/common';
 import { GigDbService, GigRecord } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
 
-const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
+/** The keys of `GigRecord` whose value is numeric -- the only keys `sum` can
+ * meaningfully add. A non-numeric key (`desc`, `type`, ...) is a compile error. */
+type NumericKey<T> = {
+  [K in keyof T]-?: NonNullable<T[K]> extends number ? K : never;
+}[keyof T];
+
+const sum = (arr: readonly GigRecord[], key: NumericKey<GigRecord>): number =>
   arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
 @Component({

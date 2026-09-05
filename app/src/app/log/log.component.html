@@ -24,7 +24,7 @@
           }
           @if ((r.hours || 0) > 0) {
             <span class="pill pill-n">
-              {{ r.hours!.toFixed(1) }} hrs@if (r.grossHourly != null) {<span> · {{ money(r.grossHourly) }}/hr</span>}
+              {{ (r.hours ?? 0).toFixed(1) }} hrs@if (r.grossHourly != null) {<span> · {{ money(r.grossHourly) }}/hr</span>}
             </span>
           }
           @if ((r.miles || 0) > 0) {
@@ -57,7 +57,7 @@
 
             @if (r.type === 'rehearsal' && (r.hours || 0) > 0) {
               <div class="dsec">Time</div>
-              <div class="drow"><span class="dl">Duration</span><span class="dv">{{ r.hours!.toFixed(2) }} hrs</span></div>
+              <div class="drow"><span class="dl">Duration</span><span class="dv">{{ (r.hours ?? 0).toFixed(2) }} hrs</span></div>
               <div class="drow"><span class="dl">Cost per hour</span><span class="dv val-a">{{ money((r.trueCosts || 0) / (r.hours || 1)) }}/hr</span></div>
             }
 

@@ -64,7 +64,7 @@ describe('TaxCalcService', () => {
   });
 
   it('missing/invalid numeric fields fall back to zero/defaults, never NaN', () => {
-    const r = svc.calc({ amount: 'not-a-number', type: 'income' }, { mpg: 'nope' as unknown as number });
+    const r = svc.calc({ amount: 'not-a-number', type: 'income' }, { mpg: 'nope' });
     expect(Number.isNaN(r.base)).toBe(false);
     expect(r.base).toBe(0);
     expect(r.totalTax).toBe(0);

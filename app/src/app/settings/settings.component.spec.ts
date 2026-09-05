@@ -5,10 +5,10 @@ import {
   mergeImportedRecords,
   CSV_COLUMNS,
   DEFAULT_TAX_SETTINGS,
-  type CsvRecord,
+  type ExportRecord,
 } from './settings.component';
 
-function rec(over: Partial<CsvRecord> = {}): CsvRecord {
+function rec(over: Partial<ExportRecord> = {}): ExportRecord {
   return {
     id: 'a',
     date: '2026-01-01',
@@ -117,8 +117,8 @@ describe('mergeImportedRecords', () => {
     const res = mergeImportedRecords(
       [],
       [
-        { desc: 'no id', type: 'income' } as CsvRecord,
-        { id: 'x' } as CsvRecord,
+        { desc: 'no id', type: 'income' },
+        { id: 'x' },
         rec({ id: 'ok' }),
       ],
     );
