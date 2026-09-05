@@ -6,13 +6,21 @@ import type { TaxSettings } from './gig-db.service';
 export interface CalcInput {
   amount?: string | number;
   type?: string;
-  hasTips?: boolean; tipsAmount?: string | number; tipsInTax?: boolean;
-  hasToll?: boolean; tollCost?: string | number;
-  hasMeal?: boolean; mealCost?: string | number;
-  hasOther?: boolean; otherCost?: string | number;
-  hasRoom?: boolean; roomCost?: string | number;
-  miles?: string | number; gasPrice?: string | number;
-  start?: string; end?: string;
+  hasTips?: boolean;
+  tipsAmount?: string | number;
+  tipsInTax?: boolean;
+  hasToll?: boolean;
+  tollCost?: string | number;
+  hasMeal?: boolean;
+  mealCost?: string | number;
+  hasOther?: boolean;
+  otherCost?: string | number;
+  hasRoom?: boolean;
+  roomCost?: string | number;
+  miles?: string | number;
+  gasPrice?: string | number;
+  start?: string;
+  end?: string;
 }
 
 /** Tax-rate settings as calc() reads them. Values may still be strings here
@@ -110,9 +118,28 @@ export class TaxCalcService {
     const trueHourly = hours > 0 ? netAfterAll / hours : null;
 
     return {
-      hours, fuelCost, trueCostMiles, irsDed, dedMeals, totalDed, taxSavings,
-      trueCosts, seTax, incomeTax, totalTax, netAfterAll,
-      grossHourly, trueHourly, toll, meal, oth, room, tips, miles, totalIncome, base,
+      hours,
+      fuelCost,
+      trueCostMiles,
+      irsDed,
+      dedMeals,
+      totalDed,
+      taxSavings,
+      trueCosts,
+      seTax,
+      incomeTax,
+      totalTax,
+      netAfterAll,
+      grossHourly,
+      trueHourly,
+      toll,
+      meal,
+      oth,
+      room,
+      tips,
+      miles,
+      totalIncome,
+      base,
     };
   }
 }

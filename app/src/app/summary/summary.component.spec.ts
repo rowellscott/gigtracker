@@ -11,7 +11,7 @@ function rec(partial: Partial<GigRecord>): GigRecord {
     type: 'income',
     desc: 'Test',
     amount: 0,
-    ...partial
+    ...partial,
   } as GigRecord;
 }
 
@@ -22,23 +22,57 @@ describe('SummaryComponent', () => {
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      imports: [SummaryComponent]
+      imports: [SummaryComponent],
     });
     const fixture = TestBed.createComponent(SummaryComponent);
     component = fixture.componentInstance;
     const gigDb = TestBed.inject(GigDbService);
     gigDb.recsGetAll = async () => [
-      rec({ id: '1', date: `${thisYear}-02-01`, type: 'income', desc: 'Gig A', amount: 100, tips: 20, trueCosts: 5, seTax: 10, incomeTax: 4 }),
-      rec({ id: '2', date: `${thisYear}-03-01`, type: 'rehearsal', desc: 'Rehearsal A', amount: 0, trueCosts: 15 }),
-      rec({ id: '3', date: `${thisYear}-04-01`, type: 'expense', desc: 'Strings', amount: 30, trueCosts: 0 }),
-      rec({ id: '4', date: `${thisYear - 1}-12-01`, type: 'income', desc: 'Old gig', amount: 500, tips: 50, trueCosts: 1, seTax: 20, incomeTax: 8 })
+      rec({
+        id: '1',
+        date: `${thisYear}-02-01`,
+        type: 'income',
+        desc: 'Gig A',
+        amount: 100,
+        tips: 20,
+        trueCosts: 5,
+        seTax: 10,
+        incomeTax: 4,
+      }),
+      rec({
+        id: '2',
+        date: `${thisYear}-03-01`,
+        type: 'rehearsal',
+        desc: 'Rehearsal A',
+        amount: 0,
+        trueCosts: 15,
+      }),
+      rec({
+        id: '3',
+        date: `${thisYear}-04-01`,
+        type: 'expense',
+        desc: 'Strings',
+        amount: 30,
+        trueCosts: 0,
+      }),
+      rec({
+        id: '4',
+        date: `${thisYear - 1}-12-01`,
+        type: 'income',
+        desc: 'Old gig',
+        amount: 500,
+        tips: 50,
+        trueCosts: 1,
+        seTax: 20,
+        incomeTax: 8,
+      }),
     ];
     fixture.detectChanges();
     await fixture.whenStable();
   });
 
   it('scopes to the current calendar year', () => {
-    expect(component.yearRecords().map(r => r.id)).toEqual(['1', '2', '3']);
+    expect(component.yearRecords().map((r) => r.id)).toEqual(['1', '2', '3']);
   });
 
   it('computes gross income from income records only', () => {
@@ -61,7 +95,7 @@ describe('SummaryComponent', () => {
   });
 
   it('computes net as (gross+tips) - allCosts - tax', () => {
-    expect(component.net()).toBe((100 + 20) - 50 - 14);
+    expect(component.net()).toBe(100 + 20 - 50 - 14);
   });
 
   it('breaks costs down the legacy way (gigCosts / rehCosts / expCosts)', () => {

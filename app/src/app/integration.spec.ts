@@ -75,7 +75,9 @@ describe('GigTracker integration', () => {
 
   it('Log pagination: 45 records -> 20 on page 1, 5 on page 3', async () => {
     for (let i = 0; i < 45; i++) {
-      await db.recSave(baseRecord({ id: `r${i}`, date: `2026-02-${String((i % 28) + 1).padStart(2, '0')}` }));
+      await db.recSave(
+        baseRecord({ id: `r${i}`, date: `2026-02-${String((i % 28) + 1).padStart(2, '0')}` }),
+      );
     }
     fixture = TestBed.createComponent(App);
     await settle();

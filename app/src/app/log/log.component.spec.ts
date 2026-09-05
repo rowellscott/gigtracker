@@ -11,7 +11,7 @@ function rec(partial: Partial<GigRecord>): GigRecord {
     type: 'income',
     desc: 'Test',
     amount: 0,
-    ...partial
+    ...partial,
   } as GigRecord;
 }
 
@@ -20,42 +20,49 @@ describe('LogComponent', () => {
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      imports: [LogComponent]
+      imports: [LogComponent],
     });
     const fixture = TestBed.createComponent(LogComponent);
     component = fixture.componentInstance;
     const gigDb = TestBed.inject(GigDbService);
     gigDb.recsGetAll = async () => [
       rec({ id: '1', date: '2026-02-01', type: 'income', desc: 'Gig A', amount: 100, tips: 20 }),
-      rec({ id: '2', date: '2026-01-15', type: 'rehearsal', desc: 'Rehearsal A', amount: 0, trueCosts: 15.5 }),
-      rec({ id: '3', date: '2026-01-01', type: 'expense', desc: 'Strings', amount: 30 })
+      rec({
+        id: '2',
+        date: '2026-01-15',
+        type: 'rehearsal',
+        desc: 'Rehearsal A',
+        amount: 0,
+        trueCosts: 15.5,
+      }),
+      rec({ id: '3', date: '2026-01-01', type: 'expense', desc: 'Strings', amount: 30 }),
     ];
     fixture.detectChanges();
     await fixture.whenStable();
   });
 
   it('lists all records newest first', () => {
-    expect(component.filteredRecords().map(r => r.id)).toEqual(['1', '2', '3']);
+    expect(component.filteredRecords().map((r) => r.id)).toEqual(['1', '2', '3']);
   });
 
   it('filters by type', () => {
     component.setFilter('income');
-    expect(component.filteredRecords().map(r => r.id)).toEqual(['1']);
+    expect(component.filteredRecords().map((r) => r.id)).toEqual(['1']);
   });
 
   it('formats income amount as +$amount+tips in green', () => {
-    const income = component.filteredRecords().find(r => r.id === '1')!;
+    const income = component.filteredRecords().find((r) => r.id === '1')!;
     expect(component.amountLabel(income)).toBe('+$120.00');
     expect(component.amountClass(income)).toBe('amount-income');
   });
 
   it('formats rehearsal amount as trueCosts cost', () => {
-    const rehearsal = component.filteredRecords().find(r => r.id === '2')!;
+    const rehearsal = component.filteredRecords().find((r) => r.id === '2')!;
     expect(component.amountLabel(rehearsal)).toBe('$15.50 cost');
   });
 
   it('formats expense amount as -$amount in red', () => {
-    const expense = component.filteredRecords().find(r => r.id === '3')!;
+    const expense = component.filteredRecords().find((r) => r.id === '3')!;
     expect(component.amountLabel(expense)).toBe('-$30.00');
     expect(component.amountClass(expense)).toBe('amount-expense');
   });
@@ -86,10 +93,7 @@ describe('LogComponent', () => {
 describe('LogComponent delete', () => {
   it('doDelete soft-deletes via the db and refreshes the list', async () => {
     let deleted: string | null = null;
-    let remaining: GigRecord[] = [
-      rec({ id: '1', desc: 'Keep' }),
-      rec({ id: '2', desc: 'Drop' }),
-    ];
+    let remaining: GigRecord[] = [rec({ id: '1', desc: 'Keep' }), rec({ id: '2', desc: 'Drop' })];
     TestBed.configureTestingModule({ imports: [LogComponent] });
     const fixture = TestBed.createComponent(LogComponent);
     const component = fixture.componentInstance;
@@ -114,7 +118,12 @@ describe('LogComponent pagination', () => {
 
   function manyRecords(n: number): GigRecord[] {
     return Array.from({ length: n }, (_, i) =>
-      rec({ id: String(i), date: `2026-01-${String((i % 28) + 1).padStart(2, '0')}`, type: 'income', amount: 10 })
+      rec({
+        id: String(i),
+        date: `2026-01-${String((i % 28) + 1).padStart(2, '0')}`,
+        type: 'income',
+        amount: 10,
+      }),
     );
   }
 

@@ -25,11 +25,16 @@ describe('TaxCalcService', () => {
   it('income gig with mileage + meal + tips', () => {
     const r = svc.calc(
       {
-        amount: '200', type: 'income',
-        hasTips: true, tipsAmount: '50',
-        hasMeal: true, mealCost: '20',
-        miles: '100', gasPrice: '3.50',
-        start: '09:00', end: '13:30',
+        amount: '200',
+        type: 'income',
+        hasTips: true,
+        tipsAmount: '50',
+        hasMeal: true,
+        mealCost: '20',
+        miles: '100',
+        gasPrice: '3.50',
+        start: '09:00',
+        end: '13:30',
       },
       { mpg: 25, federalRate: 22, stateRate: 5, irsRate: 0.67, trueCostRate: 0.5 },
     );
@@ -57,8 +62,14 @@ describe('TaxCalcService', () => {
   });
 
   it('tips excluded from taxable income when tipsInTax is false', () => {
-    const taxed = svc.calc({ amount: '100', type: 'income', hasTips: true, tipsAmount: '50', tipsInTax: true }, {});
-    const untaxed = svc.calc({ amount: '100', type: 'income', hasTips: true, tipsAmount: '50', tipsInTax: false }, {});
+    const taxed = svc.calc(
+      { amount: '100', type: 'income', hasTips: true, tipsAmount: '50', tipsInTax: true },
+      {},
+    );
+    const untaxed = svc.calc(
+      { amount: '100', type: 'income', hasTips: true, tipsAmount: '50', tipsInTax: false },
+      {},
+    );
     expect(taxed.totalIncome).toBe(untaxed.totalIncome); // gross always includes tips
     expect(taxed.seTax).toBeGreaterThan(untaxed.seTax); // but taxable base differs
   });

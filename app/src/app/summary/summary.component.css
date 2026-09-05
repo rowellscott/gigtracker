@@ -1,3 +1,5 @@
 /* Summary styling (hero, accordion, quarterly grid, per-gig rows) is in the
    global src/styles.css, ported from the legacy single-file app. */
-.summary { display: block; }
+.summary {
+  display: block;
+}

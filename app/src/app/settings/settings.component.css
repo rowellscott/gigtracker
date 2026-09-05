@@ -1,3 +1,5 @@
 /* Settings styling (.sec, .bk-card/.bk-row, .btn, .callout, .note) is in the
    global src/styles.css, ported from the legacy single-file app. */
-.settings { display: block; }
+.settings {
+  display: block;
+}

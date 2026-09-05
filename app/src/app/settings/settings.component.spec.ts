@@ -75,7 +75,14 @@ describe('recordsToCsv', () => {
 
   it('matches the legacy row shape: Pay Date, Tips In Tax yes/no, Total Income = base + tips', () => {
     const csv = recordsToCsv([
-      rec({ date: '2026-01-01', payDate: '2026-01-08', amount: 300, tips: 20, tipsInTax: true, payMethod: 'Venmo' }),
+      rec({
+        date: '2026-01-01',
+        payDate: '2026-01-08',
+        amount: 300,
+        tips: 20,
+        tipsInTax: true,
+        payMethod: 'Venmo',
+      }),
     ]);
     const cells = csv.split('\n')[1].split(',');
     // Date, Pay Date, Type, "Description", Base Pay, Tips, Tips In Tax, Total Income, ...
@@ -116,11 +123,7 @@ describe('mergeImportedRecords', () => {
   it('skips entries missing id or type', () => {
     const res = mergeImportedRecords(
       [],
-      [
-        { desc: 'no id', type: 'income' },
-        { id: 'x' },
-        rec({ id: 'ok' }),
-      ],
+      [{ desc: 'no id', type: 'income' }, { id: 'x' }, rec({ id: 'ok' })],
     );
     expect(res.skipped).toBe(2);
     expect(res.toSave.map((r) => r.id)).toEqual(['ok']);

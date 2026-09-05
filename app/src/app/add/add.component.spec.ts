@@ -18,7 +18,10 @@ describe('AddComponent', () => {
 
   beforeEach(async () => {
     saved = [];
-    locations = [{ name: 'Ace Venue', miles: 3 }, { name: 'The Cellar', address: '12 Main St', miles: 8.4 }];
+    locations = [
+      { name: 'Ace Venue', miles: 3 },
+      { name: 'The Cellar', address: '12 Main St', miles: 8.4 },
+    ];
     dbStub = {
       recSave: (r: GigRecord) => {
         saved.push(r);
@@ -31,8 +34,9 @@ describe('AddComponent', () => {
           const cleaned: SavedLocation = { name };
           if (loc.address?.trim()) cleaned.address = loc.address.trim();
           if (loc.miles != null && !isNaN(loc.miles)) cleaned.miles = loc.miles;
-          locations = [...locations.filter((l) => l.name !== name), cleaned]
-            .sort((a, b) => a.name.localeCompare(b.name));
+          locations = [...locations.filter((l) => l.name !== name), cleaned].sort((a, b) =>
+            a.name.localeCompare(b.name),
+          );
         }
         return Promise.resolve(locations);
       },
@@ -53,7 +57,7 @@ describe('AddComponent', () => {
     await fixture.whenStable();
   });
 
-  it('creates with income type and today\'s date', () => {
+  it("creates with income type and today's date", () => {
     expect(cmp).toBeTruthy();
     expect(cmp.fm.type).toBe('income');
     expect(cmp.fm.date).toBe(todayStr());

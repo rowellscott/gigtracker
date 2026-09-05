@@ -16,18 +16,40 @@ export interface GigRecord {
   notes?: string;
   start?: string;
   end?: string;
-  hasToll?: boolean; tollCost?: number;
-  hasMeal?: boolean; mealCost?: number;
-  hasOther?: boolean; otherDesc?: string; otherCost?: number;
-  hasRoom?: boolean; roomCost?: number;
-  hasTips?: boolean; tipsAmount?: number; tipsInTax?: boolean;
-  miles?: number; gasPrice?: number;
+  hasToll?: boolean;
+  tollCost?: number;
+  hasMeal?: boolean;
+  mealCost?: number;
+  hasOther?: boolean;
+  otherDesc?: string;
+  otherCost?: number;
+  hasRoom?: boolean;
+  roomCost?: number;
+  hasTips?: boolean;
+  tipsAmount?: number;
+  tipsInTax?: boolean;
+  miles?: number;
+  gasPrice?: number;
   // Calculated fields stored alongside the raw data (see TaxCalcService)
-  hours?: number; fuelCost?: number; trueCostMiles?: number; irsDed?: number;
-  dedMeals?: number; totalDed?: number; taxSavings?: number; trueCosts?: number;
-  seTax?: number; incomeTax?: number; totalTax?: number; netAfterAll?: number;
-  trueHourly?: number | null; grossHourly?: number | null;
-  toll?: number; meal?: number; oth?: number; room?: number; tips?: number;
+  hours?: number;
+  fuelCost?: number;
+  trueCostMiles?: number;
+  irsDed?: number;
+  dedMeals?: number;
+  totalDed?: number;
+  taxSavings?: number;
+  trueCosts?: number;
+  seTax?: number;
+  incomeTax?: number;
+  totalTax?: number;
+  netAfterAll?: number;
+  trueHourly?: number | null;
+  grossHourly?: number | null;
+  toll?: number;
+  meal?: number;
+  oth?: number;
+  room?: number;
+  tips?: number;
   deleted?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -154,8 +176,9 @@ export class GigDbService {
     const cleaned: SavedLocation = { name };
     if (loc.address?.trim()) cleaned.address = loc.address.trim();
     if (loc.miles != null && !isNaN(loc.miles)) cleaned.miles = loc.miles;
-    const updated = [...current.filter((l) => l.name !== name), cleaned]
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const updated = [...current.filter((l) => l.name !== name), cleaned].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
     await this.kvSet(GigDbService.SAVED_LOCATIONS_KEY, updated);
     return updated;
   }
@@ -170,9 +193,7 @@ export class GigDbService {
   /** All non-deleted records, newest date first -- matches recsGetAll() in the legacy app. */
   async recsGetAll(): Promise<GigRecord[]> {
     const all = await this.getAll<GigRecord>(RECS_STORE);
-    return all
-      .filter((r) => !r.deleted)
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return all.filter((r) => !r.deleted).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }
 
   async recGet(id: string): Promise<GigRecord | undefined> {

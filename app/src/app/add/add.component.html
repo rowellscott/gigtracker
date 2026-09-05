@@ -7,69 +7,147 @@
   }
 
   <div class="type-row">
-    <button type="button" class="tbtn" [class.sel-i]="fm.type === 'income'" (click)="setType('income')">+ Income<br />Gig</button>
-    <button type="button" class="tbtn" [class.sel-r]="fm.type === 'rehearsal'" (click)="setType('rehearsal')">Rehearsal<br />/ Unpaid</button>
-    <button type="button" class="tbtn" [class.sel-e]="fm.type === 'expense'" (click)="setType('expense')">Expense<br />Only</button>
+    <button
+      type="button"
+      class="tbtn"
+      [class.sel-i]="fm.type === 'income'"
+      (click)="setType('income')"
+    >
+      + Income<br />Gig
+    </button>
+    <button
+      type="button"
+      class="tbtn"
+      [class.sel-r]="fm.type === 'rehearsal'"
+      (click)="setType('rehearsal')"
+    >
+      Rehearsal<br />/ Unpaid
+    </button>
+    <button
+      type="button"
+      class="tbtn"
+      [class.sel-e]="fm.type === 'expense'"
+      (click)="setType('expense')"
+    >
+      Expense<br />Only
+    </button>
   </div>
 
-  <label>Date
+  <label
+    >Date
     <input type="date" name="date" [(ngModel)]="fm.date" />
   </label>
 
   @if (fm.type === 'income') {
-    <label>Payment date
+    <label
+      >Payment date
       <input type="date" name="payDate" [(ngModel)]="fm.payDate" />
     </label>
   }
 
   <label>Description *</label>
   <div class="desc-row">
-    <input type="text" name="desc" [(ngModel)]="fm.desc"
-      [placeholder]="fm.type === 'income' ? 'Club gig, session, private event…' : fm.type === 'rehearsal' ? 'Band rehearsal, load-in, meeting…' : 'Strings, parking, software…'" />
-    <button type="button" class="loc-save" title="Save this description + address + miles as a location"
-      [disabled]="!fm.desc.trim()" (click)="saveCurrentLocation()">★</button>
+    <input
+      type="text"
+      name="desc"
+      [(ngModel)]="fm.desc"
+      [placeholder]="
+        fm.type === 'income'
+          ? 'Club gig, session, private event…'
+          : fm.type === 'rehearsal'
+            ? 'Band rehearsal, load-in, meeting…'
+            : 'Strings, parking, software…'
+      "
+    />
+    <button
+      type="button"
+      class="loc-save"
+      title="Save this description + address + miles as a location"
+      [disabled]="!fm.desc.trim()"
+      (click)="saveCurrentLocation()"
+    >
+      ★
+    </button>
   </div>
 
-  <label>Location address (optional, saved with ★ above)
-    <input type="text" name="locationAddress" placeholder="For your own reference — not looked up"
-      [(ngModel)]="locationAddress" />
+  <label
+    >Location address (optional, saved with ★ above)
+    <input
+      type="text"
+      name="locationAddress"
+      placeholder="For your own reference — not looked up"
+      [(ngModel)]="locationAddress"
+    />
   </label>
-  <p class="note">Whatever's in Miles below when you tap ★ is saved with the location, so picking it later fills in both.</p>
+  <p class="note">
+    Whatever's in Miles below when you tap ★ is saved with the location, so picking it later fills
+    in both.
+  </p>
 
   @if (savedLocations().length) {
     <div class="loc-row">
-      <span class="note" style="width:100%;margin:0">Saved locations — tap to fill description + miles:</span>
+      <span class="note" style="width: 100%; margin: 0"
+        >Saved locations — tap to fill description + miles:</span
+      >
       @for (loc of savedLocations(); track loc.name) {
         <span class="loc-chip">
-          <button type="button" class="loc-pick" [title]="loc.address || ''" (click)="pickLocation(loc)">
-            {{ loc.name }}@if (loc.miles != null) {<span class="loc-miles">· {{ loc.miles }} mi</span>}
+          <button
+            type="button"
+            class="loc-pick"
+            [title]="loc.address || ''"
+            (click)="pickLocation(loc)"
+          >
+            {{ loc.name }}
+            @if (loc.miles != null) {
+              <span class="loc-miles">· {{ loc.miles }} mi</span>
+            }
           </button>
-          <button type="button" class="loc-rm" title="Remove" (click)="removeLocation(loc.name)">&times;</button>
+          <button type="button" class="loc-rm" title="Remove" (click)="removeLocation(loc.name)">
+            &times;
+          </button>
         </span>
       }
     </div>
   }
 
   @if (fm.type === 'income') {
-    <label>Amount received ($)
-      <input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="amount" [(ngModel)]="fm.amount" />
+    <label
+      >Amount received ($)
+      <input
+        type="number"
+        inputmode="decimal"
+        step="0.01"
+        placeholder="0.00"
+        name="amount"
+        [(ngModel)]="fm.amount"
+      />
     </label>
   }
 
   @if (fm.type === 'rehearsal') {
-    <div class="callout c-info" style="font-size:12px">
+    <div class="callout c-info" style="font-size: 12px">
       All rehearsal costs are 100% deductible business expenses.
     </div>
   }
 
   <div class="row2">
-    <div><label>Start time<input type="time" name="start" [(ngModel)]="fm.start" /></label></div>
-    <div><label>End time<input type="time" name="end" [(ngModel)]="fm.end" /></label></div>
+    <div>
+      <label>Start time<input type="time" name="start" [(ngModel)]="fm.start" /></label>
+    </div>
+    <div>
+      <label>End time<input type="time" name="end" [(ngModel)]="fm.end" /></label>
+    </div>
   </div>
 
   @if (fm.type === 'income') {
-    <label>Payment method
-      <input type="text" name="payMethod" placeholder="Cash, Venmo, check, Zelle…" [(ngModel)]="fm.payMethod" />
+    <label
+      >Payment method
+      <input
+        type="text"
+        name="payMethod"
+        placeholder="Cash, Venmo, check, Zelle…"
+        [(ngModel)]="fm.payMethod"
+      />
     </label>
   }
 
@@ -77,27 +155,69 @@
   <div class="sec">Travel</div>
 
   <div class="row2">
-    <div><label>Miles driven<input type="number" inputmode="decimal" step="0.1" placeholder="0" name="miles" [(ngModel)]="fm.miles" /></label></div>
-    <div><label>Gas ($/gal)<input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="gasPrice" [(ngModel)]="fm.gasPrice" /></label></div>
+    <div>
+      <label
+        >Miles driven<input
+          type="number"
+          inputmode="decimal"
+          step="0.1"
+          placeholder="0"
+          name="miles"
+          [(ngModel)]="fm.miles"
+      /></label>
+    </div>
+    <div>
+      <label
+        >Gas ($/gal)<input
+          type="number"
+          inputmode="decimal"
+          step="0.01"
+          placeholder="0.00"
+          name="gasPrice"
+          [(ngModel)]="fm.gasPrice"
+      /></label>
+    </div>
   </div>
 
   <div class="tgl">
-    <label class="tgl-hdr"><input type="checkbox" name="hasToll" [(ngModel)]="fm.hasToll" /><span>Toll(s)</span></label>
+    <label class="tgl-hdr"
+      ><input type="checkbox" name="hasToll" [(ngModel)]="fm.hasToll" /><span>Toll(s)</span></label
+    >
     @if (fm.hasToll) {
       <div class="tgl-body" [class.open]="fm.hasToll">
-        <label>Toll cost ($0 = flag it, fill from SunPass later)
-          <input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="tollCost" [(ngModel)]="fm.tollCost" />
+        <label
+          >Toll cost ($0 = flag it, fill from SunPass later)
+          <input
+            type="number"
+            inputmode="decimal"
+            step="0.01"
+            placeholder="0.00"
+            name="tollCost"
+            [(ngModel)]="fm.tollCost"
+          />
         </label>
       </div>
     }
   </div>
 
   <div class="tgl">
-    <label class="tgl-hdr"><input type="checkbox" name="hasMeal" [(ngModel)]="fm.hasMeal" /><span>Meal / food</span></label>
+    <label class="tgl-hdr"
+      ><input type="checkbox" name="hasMeal" [(ngModel)]="fm.hasMeal" /><span
+        >Meal / food</span
+      ></label
+    >
     @if (fm.hasMeal) {
       <div class="tgl-body" [class.open]="fm.hasMeal">
-        <label>Meal cost (50% deductible)
-          <input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="mealCost" [(ngModel)]="fm.mealCost" />
+        <label
+          >Meal cost (50% deductible)
+          <input
+            type="number"
+            inputmode="decimal"
+            step="0.01"
+            placeholder="0.00"
+            name="mealCost"
+            [(ngModel)]="fm.mealCost"
+          />
         </label>
       </div>
     }
@@ -105,11 +225,23 @@
 
   @if (fm.type === 'rehearsal') {
     <div class="tgl">
-      <label class="tgl-hdr"><input type="checkbox" name="hasRoom" [(ngModel)]="fm.hasRoom" /><span>Room / space rental</span></label>
+      <label class="tgl-hdr"
+        ><input type="checkbox" name="hasRoom" [(ngModel)]="fm.hasRoom" /><span
+          >Room / space rental</span
+        ></label
+      >
       @if (fm.hasRoom) {
         <div class="tgl-body" [class.open]="fm.hasRoom">
-          <label>Room cost (100% deductible)
-            <input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="roomCost" [(ngModel)]="fm.roomCost" />
+          <label
+            >Room cost (100% deductible)
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              placeholder="0.00"
+              name="roomCost"
+              [(ngModel)]="fm.roomCost"
+            />
           </label>
           <p class="note">Rehearsal studio, practice space, etc.</p>
         </div>
@@ -119,14 +251,31 @@
 
   @if (fm.type === 'income') {
     <div class="tgl">
-      <label class="tgl-hdr"><input type="checkbox" name="hasTips" [(ngModel)]="fm.hasTips" /><span>Tips received</span></label>
+      <label class="tgl-hdr"
+        ><input type="checkbox" name="hasTips" [(ngModel)]="fm.hasTips" /><span
+          >Tips received</span
+        ></label
+      >
       @if (fm.hasTips) {
         <div class="tgl-body" [class.open]="fm.hasTips">
-          <label>Tips amount ($)
-            <input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="tipsAmount" [(ngModel)]="fm.tipsAmount" />
+          <label
+            >Tips amount ($)
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              placeholder="0.00"
+              name="tipsAmount"
+              [(ngModel)]="fm.tipsAmount"
+            />
           </label>
-          <div class="tgl" style="margin-top:8px">
-            <label class="tgl-hdr"><input type="checkbox" name="tipsInTax" [(ngModel)]="fm.tipsInTax" /><span style="font-size:13px">Include tips in tax estimate</span></label>
+          <div class="tgl" style="margin-top: 8px">
+            <label class="tgl-hdr"
+              ><input type="checkbox" name="tipsInTax" [(ngModel)]="fm.tipsInTax" /><span
+                style="font-size: 13px"
+                >Include tips in tax estimate</span
+              ></label
+            >
           </div>
           <p class="note">Tips are taxable income. Uncheck only if tracking separately.</p>
         </div>
@@ -135,17 +284,40 @@
   }
 
   <div class="tgl">
-    <label class="tgl-hdr"><input type="checkbox" name="hasOther" [(ngModel)]="fm.hasOther" /><span>Other expense</span></label>
+    <label class="tgl-hdr"
+      ><input type="checkbox" name="hasOther" [(ngModel)]="fm.hasOther" /><span
+        >Other expense</span
+      ></label
+    >
     @if (fm.hasOther) {
       <div class="tgl-body" [class.open]="fm.hasOther">
-        <label>Description<input type="text" name="otherDesc" placeholder="Strings, gear, parking…" [(ngModel)]="fm.otherDesc" /></label>
-        <label>Cost ($)<input type="number" inputmode="decimal" step="0.01" placeholder="0.00" name="otherCost" [(ngModel)]="fm.otherCost" /></label>
+        <label
+          >Description<input
+            type="text"
+            name="otherDesc"
+            placeholder="Strings, gear, parking…"
+            [(ngModel)]="fm.otherDesc"
+        /></label>
+        <label
+          >Cost ($)<input
+            type="number"
+            inputmode="decimal"
+            step="0.01"
+            placeholder="0.00"
+            name="otherCost"
+            [(ngModel)]="fm.otherCost"
+        /></label>
       </div>
     }
   </div>
 
-  <label>Notes
-    <textarea name="notes" placeholder="Venue, band, contact, anything useful…" [(ngModel)]="fm.notes"></textarea>
+  <label
+    >Notes
+    <textarea
+      name="notes"
+      placeholder="Venue, band, contact, anything useful…"
+      [(ngModel)]="fm.notes"
+    ></textarea>
   </label>
 
   @if (preview.length) {
@@ -153,11 +325,17 @@
       <div class="prev-hdr">Preview</div>
       @for (item of preview; track $index) {
         @if (item.kind === 'sep') {
-          <div class="sep" style="margin:5px 0"></div>
+          <div class="sep" style="margin: 5px 0"></div>
         } @else if (item.kind === 'row') {
           <div class="prow">
             <span class="pl">{{ item.l }}</span>
-            <span class="pv" [class.val-g]="item.cls === 'g'" [class.val-r]="item.cls === 'r'" [class.val-a]="item.cls === 'a'">{{ item.v }}</span>
+            <span
+              class="pv"
+              [class.val-g]="item.cls === 'g'"
+              [class.val-r]="item.cls === 'r'"
+              [class.val-a]="item.cls === 'a'"
+              >{{ item.v }}</span
+            >
           </div>
         }
       }
@@ -168,13 +346,23 @@
     <p class="callout c-warn">{{ error() }}</p>
   }
 
-  <button type="button" class="btn"
-    [class.btn-i]="fm.type === 'income'" [class.btn-r]="fm.type === 'rehearsal'" [class.btn-e]="fm.type === 'expense'"
-    [disabled]="!canSave" (click)="save()">{{ saveLabel }}</button>
+  <button
+    type="button"
+    class="btn"
+    [class.btn-i]="fm.type === 'income'"
+    [class.btn-r]="fm.type === 'rehearsal'"
+    [class.btn-e]="fm.type === 'expense'"
+    [disabled]="!canSave"
+    (click)="save()"
+  >
+    {{ saveLabel }}
+  </button>
 
   @if (editId) {
-    <button type="button" class="btn btn-cancel" (click)="cancelEdit()">Cancel — discard changes</button>
+    <button type="button" class="btn btn-cancel" (click)="cancelEdit()">
+      Cancel — discard changes
+    </button>
   }
 
-  <div style="height:88px"></div>
+  <div style="height: 88px"></div>
 </div>

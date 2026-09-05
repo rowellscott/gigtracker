@@ -14,7 +14,13 @@ describe('GigDbService', () => {
   });
 
   it('round-trips a record through recSave/recGet', async () => {
-    const rec: GigRecord = { id: 'a1', date: '2026-01-15', type: 'income', desc: 'Club gig', amount: 200 };
+    const rec: GigRecord = {
+      id: 'a1',
+      date: '2026-01-15',
+      type: 'income',
+      desc: 'Club gig',
+      amount: 200,
+    };
     await db.recSave(rec);
     const back = await db.recGet('a1');
     expect(back?.desc).toBe('Club gig');
@@ -24,7 +30,13 @@ describe('GigDbService', () => {
   it('recsGetAll excludes soft-deleted records and sorts newest date first', async () => {
     await db.recSave({ id: '1', date: '2026-01-01', type: 'income', desc: 'Jan', amount: 100 });
     await db.recSave({ id: '2', date: '2026-03-01', type: 'income', desc: 'Mar', amount: 100 });
-    await db.recSave({ id: '3', date: '2026-02-01', type: 'income', desc: 'Feb (deleted)', amount: 100 });
+    await db.recSave({
+      id: '3',
+      date: '2026-02-01',
+      type: 'income',
+      desc: 'Feb (deleted)',
+      amount: 100,
+    });
     await db.recMarkDeleted('3');
 
     const all = await db.recsGetAll();

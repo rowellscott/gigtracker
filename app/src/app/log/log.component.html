@@ -1,16 +1,44 @@
 <div class="log">
   <div class="filter-row">
-    <button type="button" class="fbtn" [class.active]="filter() === 'all'" (click)="setFilter('all')">All</button>
-    <button type="button" class="fbtn" [class.active]="filter() === 'income'" (click)="setFilter('income')">Income</button>
-    <button type="button" class="fbtn" [class.active]="filter() === 'rehearsal'" (click)="setFilter('rehearsal')">Rehearsal</button>
-    <button type="button" class="fbtn" [class.active]="filter() === 'expense'" (click)="setFilter('expense')">Expense</button>
+    <button
+      type="button"
+      class="fbtn"
+      [class.active]="filter() === 'all'"
+      (click)="setFilter('all')"
+    >
+      All
+    </button>
+    <button
+      type="button"
+      class="fbtn"
+      [class.active]="filter() === 'income'"
+      (click)="setFilter('income')"
+    >
+      Income
+    </button>
+    <button
+      type="button"
+      class="fbtn"
+      [class.active]="filter() === 'rehearsal'"
+      (click)="setFilter('rehearsal')"
+    >
+      Rehearsal
+    </button>
+    <button
+      type="button"
+      class="fbtn"
+      [class.active]="filter() === 'expense'"
+      (click)="setFilter('expense')"
+    >
+      Expense
+    </button>
   </div>
 
   @if (pagedRecords().length) {
     @for (r of pagedRecords(); track r.id) {
       <div class="card" [class.editing]="editId() === r.id">
         <div class="card-hdr">
-          <div style="min-width:0">
+          <div style="min-width: 0">
             <div class="card-name">{{ r.desc || '—' }}</div>
             <div class="card-date">{{ cardDate(r) }}</div>
           </div>
@@ -24,7 +52,10 @@
           }
           @if ((r.hours || 0) > 0) {
             <span class="pill pill-n">
-              {{ (r.hours ?? 0).toFixed(1) }} hrs@if (r.grossHourly != null) {<span> · {{ money(r.grossHourly) }}/hr</span>}
+              {{ (r.hours ?? 0).toFixed(1) }} hrs
+              @if (r.grossHourly != null) {
+                <span> · {{ money(r.grossHourly) }}/hr</span>
+              }
             </span>
           }
           @if ((r.miles || 0) > 0) {
@@ -42,69 +73,137 @@
           <div class="detail">
             @if (r.type === 'income') {
               <div class="dsec">Income</div>
-              <div class="drow"><span class="dl">Base pay</span><span class="dv val-g">{{ money(r.amount) }}</span></div>
+              <div class="drow">
+                <span class="dl">Base pay</span><span class="dv val-g">{{ money(r.amount) }}</span>
+              </div>
               @if ((r.tips || 0) > 0) {
-                <div class="drow"><span class="dl">Tips{{ r.tipsInTax ? '' : ' (not in tax)' }}</span><span class="dv val-g">+{{ money(r.tips) }}</span></div>
-                <div class="drow"><span class="dl">Total income</span><span class="dv val-g">{{ money(total(r)) }}</span></div>
+                <div class="drow">
+                  <span class="dl">Tips{{ r.tipsInTax ? '' : ' (not in tax)' }}</span
+                  ><span class="dv val-g">+{{ money(r.tips) }}</span>
+                </div>
+                <div class="drow">
+                  <span class="dl">Total income</span
+                  ><span class="dv val-g">{{ money(total(r)) }}</span>
+                </div>
               }
               @if (r.grossHourly != null) {
-                <div class="drow"><span class="dl">Rate (income ÷ hrs)</span><span class="dv">{{ money(r.grossHourly) }}/hr</span></div>
+                <div class="drow">
+                  <span class="dl">Rate (income ÷ hrs)</span
+                  ><span class="dv">{{ money(r.grossHourly) }}/hr</span>
+                </div>
               }
               @if (r.trueHourly != null) {
-                <div class="drow"><span class="dl">True hourly (after all)</span><span class="dv" [class]="(r.trueHourly || 0) >= 0 ? 'val-g' : 'val-r'">{{ money(r.trueHourly) }}/hr</span></div>
+                <div class="drow">
+                  <span class="dl">True hourly (after all)</span
+                  ><span class="dv" [class]="(r.trueHourly || 0) >= 0 ? 'val-g' : 'val-r'"
+                    >{{ money(r.trueHourly) }}/hr</span
+                  >
+                </div>
               }
             }
 
             @if (r.type === 'rehearsal' && (r.hours || 0) > 0) {
               <div class="dsec">Time</div>
-              <div class="drow"><span class="dl">Duration</span><span class="dv">{{ (r.hours ?? 0).toFixed(2) }} hrs</span></div>
-              <div class="drow"><span class="dl">Cost per hour</span><span class="dv val-a">{{ money((r.trueCosts || 0) / (r.hours || 1)) }}/hr</span></div>
+              <div class="drow">
+                <span class="dl">Duration</span
+                ><span class="dv">{{ (r.hours ?? 0).toFixed(2) }} hrs</span>
+              </div>
+              <div class="drow">
+                <span class="dl">Cost per hour</span
+                ><span class="dv val-a">{{ money((r.trueCosts || 0) / (r.hours || 1)) }}/hr</span>
+              </div>
             }
 
             @if ((r.miles || 0) > 0) {
               <div class="dsec">Travel</div>
-              <div class="drow"><span class="dl">Miles</span><span class="dv">{{ r.miles }} mi</span></div>
-              <div class="drow"><span class="dl">Fuel cost</span><span class="dv val-r">{{ money(r.fuelCost) }}</span></div>
-              <div class="drow"><span class="dl">True cost (${{ taxSettings.trueCostRate() }}/mi)</span><span class="dv val-r">{{ money(r.trueCostMiles) }}</span></div>
-              <div class="drow"><span class="dl">IRS deduction (${{ taxSettings.irsRate() }}/mi)</span><span class="dv val-g">{{ money(r.irsDed) }}</span></div>
+              <div class="drow">
+                <span class="dl">Miles</span><span class="dv">{{ r.miles }} mi</span>
+              </div>
+              <div class="drow">
+                <span class="dl">Fuel cost</span
+                ><span class="dv val-r">{{ money(r.fuelCost) }}</span>
+              </div>
+              <div class="drow">
+                <span class="dl">True cost (${{ taxSettings.trueCostRate() }}/mi)</span
+                ><span class="dv val-r">{{ money(r.trueCostMiles) }}</span>
+              </div>
+              <div class="drow">
+                <span class="dl">IRS deduction (${{ taxSettings.irsRate() }}/mi)</span
+                ><span class="dv val-g">{{ money(r.irsDed) }}</span>
+              </div>
             }
 
             @if ((r.trueCosts || 0) > 0) {
               <div class="dsec">All costs</div>
               @if ((r.toll || 0) > 0) {
-                <div class="drow"><span class="dl">Tolls</span><span class="dv val-r">{{ money(r.toll) }}</span></div>
+                <div class="drow">
+                  <span class="dl">Tolls</span><span class="dv val-r">{{ money(r.toll) }}</span>
+                </div>
               }
               @if ((r.meal || 0) > 0) {
-                <div class="drow"><span class="dl">Meals (50% ded.)</span><span class="dv val-r">{{ money(r.meal) }}</span></div>
+                <div class="drow">
+                  <span class="dl">Meals (50% ded.)</span
+                  ><span class="dv val-r">{{ money(r.meal) }}</span>
+                </div>
               }
               @if ((r.room || 0) > 0) {
-                <div class="drow"><span class="dl">Room rental (100% ded.)</span><span class="dv val-r">{{ money(r.room) }}</span></div>
+                <div class="drow">
+                  <span class="dl">Room rental (100% ded.)</span
+                  ><span class="dv val-r">{{ money(r.room) }}</span>
+                </div>
               }
               @if ((r.oth || 0) > 0) {
-                <div class="drow"><span class="dl">Other: {{ r.otherDesc || 'misc' }}</span><span class="dv val-r">{{ money(r.oth) }}</span></div>
+                <div class="drow">
+                  <span class="dl">Other: {{ r.otherDesc || 'misc' }}</span
+                  ><span class="dv val-r">{{ money(r.oth) }}</span>
+                </div>
               }
-              <div class="drow"><span class="dl">Total costs</span><span class="dv val-r">{{ money(r.trueCosts) }}</span></div>
+              <div class="drow">
+                <span class="dl">Total costs</span
+                ><span class="dv val-r">{{ money(r.trueCosts) }}</span>
+              </div>
             }
 
             @if (r.type === 'income') {
               <div class="dsec">Taxes (estimated)</div>
-              <div class="drow"><span class="dl">Deductible expenses</span><span class="dv val-g">{{ money(r.totalDed) }}</span></div>
-              <div class="drow"><span class="dl">Tax savings</span><span class="dv val-g">{{ money(r.taxSavings) }}</span></div>
-              <div class="drow"><span class="dl">SE tax (15.3%)</span><span class="dv val-r">{{ money(r.seTax) }}</span></div>
-              <div class="drow"><span class="dl">Income tax ({{ taxSettings.combinedRatePct() }}%)</span><span class="dv val-r">{{ money(r.incomeTax) }}</span></div>
-              <div class="sep" style="margin:4px 0"></div>
-              <div class="drow"><span class="dl">Net after everything</span><span class="dv" [class]="(r.netAfterAll || 0) >= 0 ? 'val-g' : 'val-r'">{{ plusMinus(r.netAfterAll) }}</span></div>
+              <div class="drow">
+                <span class="dl">Deductible expenses</span
+                ><span class="dv val-g">{{ money(r.totalDed) }}</span>
+              </div>
+              <div class="drow">
+                <span class="dl">Tax savings</span
+                ><span class="dv val-g">{{ money(r.taxSavings) }}</span>
+              </div>
+              <div class="drow">
+                <span class="dl">SE tax (15.3%)</span
+                ><span class="dv val-r">{{ money(r.seTax) }}</span>
+              </div>
+              <div class="drow">
+                <span class="dl">Income tax ({{ taxSettings.combinedRatePct() }}%)</span
+                ><span class="dv val-r">{{ money(r.incomeTax) }}</span>
+              </div>
+              <div class="sep" style="margin: 4px 0"></div>
+              <div class="drow">
+                <span class="dl">Net after everything</span
+                ><span class="dv" [class]="(r.netAfterAll || 0) >= 0 ? 'val-g' : 'val-r'">{{
+                  plusMinus(r.netAfterAll)
+                }}</span>
+              </div>
             }
 
             @if (r.notes) {
               <div class="dsec">Notes</div>
-              <div style="font-size:12px;color:var(--t2);line-height:1.5;padding-top:2px">{{ r.notes }}</div>
+              <div style="font-size: 12px; color: var(--t2); line-height: 1.5; padding-top: 2px">
+                {{ r.notes }}
+              </div>
             }
           </div>
         }
 
         <div class="card-acts">
-          <button type="button" class="abt" (click)="toggleExpand(r.id)">{{ expandedId() === r.id ? 'Collapse' : 'Details' }}</button>
+          <button type="button" class="abt" (click)="toggleExpand(r.id)">
+            {{ expandedId() === r.id ? 'Collapse' : 'Details' }}
+          </button>
           <button type="button" class="abt abt-edit" (click)="startEdit(r)">Edit</button>
           <button type="button" class="abt abt-del" (click)="doDelete(r)">Delete</button>
         </div>
@@ -118,9 +217,11 @@
     <div class="pager">
       <button type="button" class="fbtn" (click)="prevPage()" [disabled]="page() <= 1">Prev</button>
       <span class="pager-label">Page {{ page() }} of {{ totalPages() }}</span>
-      <button type="button" class="fbtn" (click)="nextPage()" [disabled]="page() >= totalPages()">Next</button>
+      <button type="button" class="fbtn" (click)="nextPage()" [disabled]="page() >= totalPages()">
+        Next
+      </button>
     </div>
   }
 
-  <div style="height:88px"></div>
+  <div style="height: 88px"></div>
 </div>
