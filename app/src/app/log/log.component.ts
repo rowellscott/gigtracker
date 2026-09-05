@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { GigDbService, GigRecord, TaxSettings } from '../services/gig-db.service';
+import { GigDbService, GigRecord } from '../services/gig-db.service';
+import { TaxSettingsService } from '../services/tax-settings.service';
 import { AppStateService } from '../services/app-state.service';
 
 type LogFilter = 'all' | 'income' | 'rehearsal' | 'expense';
@@ -15,6 +16,7 @@ const PAGE_SIZE = 20;
 export class LogComponent implements OnInit {
   private gigDb = inject(GigDbService);
   private state = inject(AppStateService);
+  readonly taxSettings = inject(TaxSettingsService);
 
   readonly pageSize = PAGE_SIZE;
 
@@ -22,7 +24,6 @@ export class LogComponent implements OnInit {
   filter = signal<LogFilter>('all');
   page = signal(1);
   expandedId = signal<string | null>(null);
-  settings = signal<Partial<TaxSettings>>({});
 
   readonly editId = this.state.editId;
 
@@ -46,17 +47,7 @@ export class LogComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     this.records.set(await this.gigDb.recsGetAll());
     // Rate labels only -- loaded after the list so it can't delay first paint.
-    void this.loadSettings();
-  }
-
-  private async loadSettings(): Promise<void> {
-    try {
-      if (typeof this.gigDb.kvGet === 'function') {
-        this.settings.set((await this.gigDb.kvGet<TaxSettings>('appSettings')) ?? {});
-      }
-    } catch {
-      /* defaults are fine */
-    }
+    void this.taxSettings.ensureLoaded();
   }
 
   setFilter(f: LogFilter): void {
@@ -134,17 +125,5 @@ export class LogComponent implements OnInit {
 
   pillLabel(r: GigRecord): string {
     return r.type === 'income' ? 'income gig' : r.type;
-  }
-
-  irsRate(): number {
-    return this.settings().irsRate ?? 0.725;
-  }
-
-  trueCostRate(): number {
-    return this.settings().trueCostRate ?? 0.5;
-  }
-
-  combinedRatePct(): number {
-    return Number(this.settings().federalRate ?? 24) + Number(this.settings().stateRate ?? 0);
   }
 }

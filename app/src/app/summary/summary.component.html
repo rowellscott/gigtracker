@@ -42,7 +42,7 @@
         <div style="padding-top:10px">
           <div class="dsec">Estimated taxes owed</div>
           <div class="drow"><span class="dl">SE tax (income × 0.9235 × 15.3%)</span><span class="dv val-r">{{ money(seTax()) }}</span></div>
-          <div class="drow"><span class="dl">Income tax ({{ combinedRatePct() }}% bracket)</span><span class="dv val-r">{{ money(incomeTax()) }}</span></div>
+          <div class="drow"><span class="dl">Income tax ({{ taxSettings.combinedRatePct() }}% bracket)</span><span class="dv val-r">{{ money(incomeTax()) }}</span></div>
           <div class="drow"><span class="dl">Total tax burden</span><span class="dv val-r">{{ money(totalTax()) }}</span></div>
           <div class="drow"><span class="dl">Tax savings via deductions</span><span class="dv val-g">{{ money(taxSavings()) }}</span></div>
 
@@ -62,7 +62,7 @@
           <div class="srow"><span class="sl">SE tax owed (Schedule SE)</span><span class="sv val-r">{{ money(seTax()) }}</span></div>
 
           <div class="callout c-warn" style="margin-top:12px;font-size:12px">
-            ${{ irsRate() }}/mi · meals 50% ded. · room 100% ded. · SE: income × 0.9235 × 15.3%
+            ${{ taxSettings.irsRate() }}/mi · meals 50% ded. · room 100% ded. · SE: income × 0.9235 × 15.3%
           </div>
         </div>
       </div>

@@ -65,8 +65,8 @@
               <div class="dsec">Travel</div>
               <div class="drow"><span class="dl">Miles</span><span class="dv">{{ r.miles }} mi</span></div>
               <div class="drow"><span class="dl">Fuel cost</span><span class="dv val-r">{{ money(r.fuelCost) }}</span></div>
-              <div class="drow"><span class="dl">True cost (${{ trueCostRate() }}/mi)</span><span class="dv val-r">{{ money(r.trueCostMiles) }}</span></div>
-              <div class="drow"><span class="dl">IRS deduction (${{ irsRate() }}/mi)</span><span class="dv val-g">{{ money(r.irsDed) }}</span></div>
+              <div class="drow"><span class="dl">True cost (${{ taxSettings.trueCostRate() }}/mi)</span><span class="dv val-r">{{ money(r.trueCostMiles) }}</span></div>
+              <div class="drow"><span class="dl">IRS deduction (${{ taxSettings.irsRate() }}/mi)</span><span class="dv val-g">{{ money(r.irsDed) }}</span></div>
             }
 
             @if ((r.trueCosts || 0) > 0) {
@@ -91,7 +91,7 @@
               <div class="drow"><span class="dl">Deductible expenses</span><span class="dv val-g">{{ money(r.totalDed) }}</span></div>
               <div class="drow"><span class="dl">Tax savings</span><span class="dv val-g">{{ money(r.taxSavings) }}</span></div>
               <div class="drow"><span class="dl">SE tax (15.3%)</span><span class="dv val-r">{{ money(r.seTax) }}</span></div>
-              <div class="drow"><span class="dl">Income tax ({{ combinedRatePct() }}%)</span><span class="dv val-r">{{ money(r.incomeTax) }}</span></div>
+              <div class="drow"><span class="dl">Income tax ({{ taxSettings.combinedRatePct() }}%)</span><span class="dv val-r">{{ money(r.incomeTax) }}</span></div>
               <div class="sep" style="margin:4px 0"></div>
               <div class="drow"><span class="dl">Net after everything</span><span class="dv" [class]="(r.netAfterAll || 0) >= 0 ? 'val-g' : 'val-r'">{{ plusMinus(r.netAfterAll) }}</span></div>
             }

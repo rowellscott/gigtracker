@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { GigDbService, GigRecord, TaxSettings } from '../services/gig-db.service';
+import { GigDbService, GigRecord } from '../services/gig-db.service';
+import { TaxSettingsService } from '../services/tax-settings.service';
 
 const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
   arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
@@ -14,9 +15,9 @@ const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
 })
 export class SummaryComponent implements OnInit {
   private gigDb = inject(GigDbService);
+  readonly taxSettings = inject(TaxSettingsService);
 
   records = signal<GigRecord[]>([]);
-  settings = signal<Partial<TaxSettings>>({});
   openAcc = signal<Set<string>>(new Set(['taxes']));
 
   readonly year = String(new Date().getFullYear());
@@ -63,24 +64,9 @@ export class SummaryComponent implements OnInit {
   taxPct = computed(() => this.pct(this.totalTax()));
   keptPct = computed(() => this.pct(Math.max(0, this.net())));
 
-  combinedRatePct = computed(
-    () => Number(this.settings().federalRate ?? 24) + Number(this.settings().stateRate ?? 0),
-  );
-  irsRate = computed(() => this.settings().irsRate ?? 0.725);
-
   async ngOnInit(): Promise<void> {
     this.records.set(await this.gigDb.recsGetAll());
-    void this.loadSettings();
-  }
-
-  private async loadSettings(): Promise<void> {
-    try {
-      if (typeof this.gigDb.kvGet === 'function') {
-        this.settings.set((await this.gigDb.kvGet<TaxSettings>('appSettings')) ?? {});
-      }
-    } catch {
-      /* defaults are fine */
-    }
+    void this.taxSettings.ensureLoaded();
   }
 
   accOpen(id: string): boolean {

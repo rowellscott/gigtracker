@@ -31,10 +31,10 @@ describe('GigDbService', () => {
     expect(all.map((r) => r.id)).toEqual(['2', '1']);
   });
 
-  it('kvGet/kvSet round-trip settings', async () => {
-    expect(await db.kvGet('appSettings')).toBeNull();
-    await db.kvSet('appSettings', { federalRate: 22 });
-    expect(await db.kvGet('appSettings')).toEqual({ federalRate: 22 });
+  it('kvGet/kvSet round-trip a stored value', async () => {
+    expect(await db.kvGet('kvRoundTrip')).toBeNull();
+    await db.kvSet('kvRoundTrip', { federalRate: 22 });
+    expect(await db.kvGet('kvRoundTrip')).toEqual({ federalRate: 22 });
   });
 
   describe('saved gig locations', () => {

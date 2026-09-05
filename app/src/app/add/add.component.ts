@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { GigDbService, GigRecord, SavedLocation, TaxSettings } from '../services/gig-db.service';
+import { GigDbService, GigRecord, SavedLocation } from '../services/gig-db.service';
 import { TaxCalcService, CalcInput, CalcResult } from '../services/tax-calc.service';
+import { TaxSettingsService } from '../services/tax-settings.service';
 import { AppStateService } from '../services/app-state.service';
 
 export type GigType = 'income' | 'rehearsal' | 'expense';
@@ -115,6 +116,7 @@ const plusMinus = (n: number): string => (n >= 0 ? '+$' : '-$') + Math.abs(n).to
 export class AddComponent implements OnInit {
   private db = inject(GigDbService);
   private tax = inject(TaxCalcService);
+  private taxSettings = inject(TaxSettingsService);
   private state = inject(AppStateService);
 
   /** The in-progress record. A plain object rather than a signal: it is
@@ -135,10 +137,6 @@ export class AddComponent implements OnInit {
   editId: string | null = null;
   private editCreatedAt: string | undefined;
 
-  /** User's saved tax settings, so the live preview and the stored
-   * calculated fields use the same rates the legacy app does. */
-  readonly settings = signal<Partial<TaxSettings>>({});
-
   /** Scratch input for saving a new location -- not part of the GigRecord
    * being built; address is a reference label only (no geocoding, this app
    * stays offline/no-account by design). */
@@ -153,17 +151,7 @@ export class AddComponent implements OnInit {
     }
 
     this.savedLocations.set(await this.db.getSavedLocations());
-    void this.loadSettings();
-  }
-
-  private async loadSettings(): Promise<void> {
-    try {
-      if (typeof this.db.kvGet === 'function') {
-        this.settings.set((await this.db.kvGet<TaxSettings>('appSettings')) ?? {});
-      }
-    } catch {
-      /* defaults are fine */
-    }
+    void this.taxSettings.ensureLoaded();
   }
 
   setType(t: GigType): void {
@@ -221,7 +209,7 @@ export class AddComponent implements OnInit {
   }
 
   get calc(): CalcResult {
-    return this.tax.calc(this.calcInput, this.settings());
+    return this.tax.calc(this.calcInput, this.taxSettings.settings());
   }
 
   /** Ported from upPrev() in the legacy app -- same rows, same order, same
@@ -234,9 +222,8 @@ export class AddComponent implements OnInit {
     const isI = f.type === 'income';
     const isR = f.type === 'rehearsal';
     const p = this.calc;
-    const irsRate = this.settings().irsRate ?? 0.725;
-    const fedR = Number(this.settings().federalRate ?? 24);
-    const stR = Number(this.settings().stateRate ?? 0);
+    const irsRate = this.taxSettings.irsRate();
+    const combinedRate = this.taxSettings.combinedRatePct();
     const hasIncome = (parseFloat(f.amount) || 0) > 0 || p.tips > 0;
     if (!hasIncome && !p.trueCosts && !p.hours) return [];
 
@@ -257,7 +244,7 @@ export class AddComponent implements OnInit {
     if (p.trueCosts > 0) row('Total out-of-pocket', money(p.trueCosts), 'r');
     if (p.taxSavings > 0) row('Est. tax savings', money(p.taxSavings), 'g');
     if (isI && p.seTax > 0) row('SE tax (15.3%)', money(p.seTax), 'r');
-    if (isI && p.incomeTax > 0) row(`Income tax (${fedR + stR}%)`, money(p.incomeTax), 'r');
+    if (isI && p.incomeTax > 0) row(`Income tax (${combinedRate}%)`, money(p.incomeTax), 'r');
     if (isI && hasIncome) {
       rows.push({ kind: 'sep' });
       row('Net after costs + taxes', plusMinus(p.netAfterAll), p.netAfterAll >= 0 ? 'g' : 'r');

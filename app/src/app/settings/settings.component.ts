@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GigDbService } from '../services/gig-db.service';
+import { TaxSettingsService } from '../services/tax-settings.service';
 
 /**
  * Local structural types. Intentionally NOT imported from the services so
@@ -187,6 +188,7 @@ export function mergeImportedRecords(
 })
 export class SettingsComponent {
   private db = inject(GigDbService);
+  private taxSettings = inject(TaxSettingsService);
 
   cfg: SettingsTaxConfig = { ...DEFAULT_TAX_SETTINGS };
   lastBackupAt = signal<string | null>(null);
@@ -206,10 +208,8 @@ export class SettingsComponent {
   }
 
   async load(): Promise<void> {
-    const saved = (await this.db.kvGet<SettingsTaxConfig>('appSettings')) as
-      | SettingsTaxConfig
-      | null;
-    this.cfg = { ...DEFAULT_TAX_SETTINGS, ...(saved || {}) };
+    await this.taxSettings.reload();
+    this.cfg = { ...this.taxSettings.settings() };
     this.lastBackupAt.set((await this.db.kvGet<string>('lastBackupAt')) as string | null);
     const recs = (await this.db.recsGetAll()) as unknown as CsvRecord[];
     this.recordCount.set((recs || []).length);
@@ -232,7 +232,7 @@ export class SettingsComponent {
       mpg: num(this.cfg.mpg, 28),
     };
     this.cfg = cfg;
-    await this.db.kvSet('appSettings', cfg);
+    await this.taxSettings.save(cfg);
     this.status.set('Settings saved.');
   }
 
