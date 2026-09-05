@@ -45,6 +45,28 @@
     </label>
   }
 
+  @if (locationEnabled && savedLocations().length) {
+    <label
+      >Location
+      <select
+        name="locationPick"
+        [(ngModel)]="locationPick"
+        (ngModelChange)="onLocationSelect($event)"
+        aria-label="Fill from a saved location"
+      >
+        <option value="">— saved location (fills description, miles, address) —</option>
+        @for (loc of savedLocations(); track loc.name) {
+          <option [value]="loc.name">
+            {{ loc.name }}
+            @if (loc.miles != null) {
+              · {{ loc.miles }} mi
+            }
+          </option>
+        }
+      </select>
+    </label>
+  }
+
   <label>Description *</label>
   <div class="desc-row">
     <input
@@ -59,60 +81,38 @@
             : 'Strings, parking, software…'
       "
     />
-    <button
-      type="button"
-      class="loc-save"
-      title="Save this description + address + miles as a location"
-      [disabled]="!fm.desc.trim()"
-      (click)="saveCurrentLocation()"
-    >
-      ★
-    </button>
+    @if (locationEnabled) {
+      <button
+        type="button"
+        class="loc-save"
+        title="Save this description + address + miles as a location"
+        [disabled]="!fm.desc.trim()"
+        (click)="saveCurrentLocation()"
+      >
+        ★
+      </button>
+    }
   </div>
 
-  <label
-    >Location address (optional, saved with ★ above)
-    <input
-      type="text"
-      name="locationAddress"
-      placeholder="For your own reference — not looked up"
-      [(ngModel)]="locationAddress"
-    />
-  </label>
-  <p class="note">
-    Whatever's in Miles below when you tap ★ is saved with the location, so picking it later fills
-    in both.
-  </p>
-
-  @if (savedLocations().length) {
-    <div class="loc-row">
-      <span class="note" style="width: 100%; margin: 0"
-        >Saved locations — tap to fill description + miles:</span
-      >
-      @for (loc of savedLocations(); track loc.name) {
-        <span class="loc-chip">
-          <button
-            type="button"
-            class="loc-pick"
-            [title]="loc.address || ''"
-            (click)="pickLocation(loc)"
-          >
-            {{ loc.name }}
-            @if (loc.miles != null) {
-              <span class="loc-miles">· {{ loc.miles }} mi</span>
-            }
-          </button>
-          <button type="button" class="loc-rm" title="Remove" (click)="removeLocation(loc.name)">
-            &times;
-          </button>
-        </span>
-      }
-    </div>
+  @if (locationEnabled) {
+    <label
+      >Location address (optional)
+      <input
+        type="text"
+        name="address"
+        placeholder="12 Main St, Tampa FL — opens in Waze / Maps from the Log"
+        [(ngModel)]="fm.address"
+      />
+    </label>
+    <p class="note">
+      Miles + address are saved together when you tap ★, so picking this location later fills in all
+      three. Manage saved locations in ⚙ Settings.
+    </p>
   }
 
-  @if (fm.type === 'income') {
+  @if (fm.type !== 'rehearsal') {
     <label
-      >Amount received ($)
+      >{{ fm.type === 'income' ? 'Amount received ($)' : 'Amount spent ($)' }}
       <input
         type="number"
         inputmode="decimal"
@@ -185,17 +185,30 @@
     >
     @if (fm.hasToll) {
       <div class="tgl-body" [class.open]="fm.hasToll">
-        <label
-          >Toll cost ($0 = flag it, fill from SunPass later)
-          <input
-            type="number"
-            inputmode="decimal"
-            step="0.01"
-            placeholder="0.00"
-            name="tollCost"
-            [(ngModel)]="fm.tollCost"
-          />
-        </label>
+        <label class="tgl-hdr" style="margin-bottom: 6px"
+          ><input type="checkbox" name="tollPending" [(ngModel)]="fm.tollPending" /><span
+            style="font-size: 13px"
+            >Amount unknown — add later (SunPass bills after the trip)</span
+          ></label
+        >
+        @if (!fm.tollPending) {
+          <label
+            >Toll cost ($)
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              placeholder="0.00"
+              name="tollCost"
+              [(ngModel)]="fm.tollCost"
+            />
+          </label>
+        } @else {
+          <p class="note">
+            The Log will flag this trip with a “toll · amount TBD” tag until you edit in the real
+            amount.
+          </p>
+        }
       </div>
     }
   </div>
@@ -363,6 +376,4 @@
       Cancel — discard changes
     </button>
   }
-
-  <div style="height: 88px"></div>
 </div>

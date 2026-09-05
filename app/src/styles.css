@@ -129,7 +129,11 @@ app-root {
 /* Content & tabs */
 .content {
   flex: 1;
-  padding: 14px 16px 0;
+  /* Bottom padding lives here now -- app-shell scroll (app-root:overflow
+     hidden, .content the scroller) keeps the tab bar pinned, so the old
+     per-screen 88px spacer <div>s that pushed past a full-page scroll are
+     gone (F3). */
+  padding: 14px 16px 20px;
   overflow-y: auto;
 }
 .tabs {

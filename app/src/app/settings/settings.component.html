@@ -39,6 +39,61 @@
   </p>
 
   <div class="sep"></div>
+  <div class="sec">Saved locations</div>
+  <p class="note" style="margin-bottom: 10px">
+    Pick these from the Add screen to fill in description, miles and address in one tap. Income and
+    rehearsal only — expenses just use their description.
+  </p>
+
+  @for (loc of savedLocations(); track loc.name) {
+    <div class="bk-card" style="margin-bottom: 8px">
+      <div class="bk-row">
+        <span style="font-weight: 600; color: var(--t)">{{ loc.name }}</span>
+        <button
+          type="button"
+          class="abt abt-del"
+          style="flex: 0 0 auto; padding: 4px 10px"
+          (click)="deleteLocation(loc.name)"
+        >
+          Delete
+        </button>
+      </div>
+      @if (loc.address) {
+        <div class="bk-row">
+          <span>{{ loc.address }}</span>
+        </div>
+      }
+      @if (loc.miles != null) {
+        <div class="bk-row">
+          <span>{{ loc.miles }} mi round trip</span>
+        </div>
+      }
+    </div>
+  } @empty {
+    <p class="note">No saved locations yet.</p>
+  }
+
+  <label style="margin-top: 12px">Add a location</label>
+  <input type="text" placeholder="Name (e.g. The Blue Room)" [(ngModel)]="newLoc.name" />
+  <input
+    type="text"
+    placeholder="Address (optional)"
+    style="margin-top: 6px"
+    [(ngModel)]="newLoc.address"
+  />
+  <input
+    type="number"
+    inputmode="decimal"
+    step="0.1"
+    placeholder="Round-trip miles (optional)"
+    style="margin-top: 6px"
+    [(ngModel)]="newLoc.miles"
+  />
+  <button type="button" class="btn btn-n" style="margin-top: 8px" (click)="addLocation()">
+    Save location
+  </button>
+
+  <div class="sep"></div>
   <div class="sec">Tax rates ({{ 2026 }})</div>
 
   <label
@@ -81,6 +136,4 @@
   @if (status()) {
     <p class="callout c-success">{{ status() }}</p>
   }
-
-  <div style="height: 60px"></div>
 </section>

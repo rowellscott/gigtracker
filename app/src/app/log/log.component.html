@@ -61,6 +61,9 @@
           @if ((r.miles || 0) > 0) {
             <span class="pill pill-n">{{ r.miles }} mi</span>
           }
+          @if (tollPending(r)) {
+            <span class="pill pill-n">toll · amount TBD</span>
+          }
           @if ((r.tips || 0) > 0) {
             <span class="pill pill-n">tips +{{ money(r.tips) }}</span>
           }
@@ -71,6 +74,28 @@
 
         @if (expandedId() === r.id) {
           <div class="detail">
+            @if (r.address) {
+              <div class="dsec">Location</div>
+              <div class="drow" style="padding-bottom: 4px">
+                <span class="dl">{{ r.address }}</span>
+              </div>
+              <div class="card-acts" style="margin-top: 0">
+                <a class="abt abt-edit" [href]="wazeUrl(r.address)" target="_blank" rel="noopener"
+                  >Waze</a
+                >
+                <a class="abt abt-edit" [href]="mapsUrl(r.address)" target="_blank" rel="noopener"
+                  >Maps</a
+                >
+              </div>
+            }
+
+            @if (r.type === 'expense' && (r.amount || 0) > 0) {
+              <div class="dsec">Expense</div>
+              <div class="drow">
+                <span class="dl">Amount</span><span class="dv val-r">{{ money(r.amount) }}</span>
+              </div>
+            }
+
             @if (r.type === 'income') {
               <div class="dsec">Income</div>
               <div class="drow">
@@ -133,9 +158,13 @@
               </div>
             }
 
-            @if ((r.trueCosts || 0) > 0) {
+            @if ((r.trueCosts || 0) > 0 || tollPending(r)) {
               <div class="dsec">All costs</div>
-              @if ((r.toll || 0) > 0) {
+              @if (tollPending(r)) {
+                <div class="drow">
+                  <span class="dl">Tolls</span><span class="dv val-a">amount TBD</span>
+                </div>
+              } @else if ((r.toll || 0) > 0) {
                 <div class="drow">
                   <span class="dl">Tolls</span><span class="dv val-r">{{ money(r.toll) }}</span>
                 </div>
@@ -158,10 +187,12 @@
                   ><span class="dv val-r">{{ money(r.oth) }}</span>
                 </div>
               }
-              <div class="drow">
-                <span class="dl">Total costs</span
-                ><span class="dv val-r">{{ money(r.trueCosts) }}</span>
-              </div>
+              @if ((r.trueCosts || 0) > 0) {
+                <div class="drow">
+                  <span class="dl">Total costs</span
+                  ><span class="dv val-r">{{ money(r.trueCosts) }}</span>
+                </div>
+              }
             }
 
             @if (r.type === 'income') {
@@ -222,6 +253,4 @@
       </button>
     </div>
   }
-
-  <div style="height: 88px"></div>
 </div>

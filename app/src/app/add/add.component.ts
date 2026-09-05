@@ -17,10 +17,14 @@ export interface AddForm {
   notes: string;
   start: string;
   end: string;
+  /** F2: gig/rehearsal street address (income + rehearsal only, F5). */
+  address: string;
   miles: string;
   gasPrice: string;
   hasToll: boolean;
   tollCost: string;
+  /** F4: "a toll was paid, amount not known yet" -- set instead of typing 0. */
+  tollPending: boolean;
   hasMeal: boolean;
   mealCost: string;
   hasRoom: boolean;
@@ -50,10 +54,12 @@ export function blankForm(): AddForm {
     notes: '',
     start: '',
     end: '',
+    address: '',
     miles: '',
     gasPrice: '',
     hasToll: false,
     tollCost: '',
+    tollPending: false,
     hasMeal: false,
     mealCost: '',
     hasRoom: false,
@@ -82,10 +88,12 @@ export function formFromRecord(rec: GigRecord): AddForm {
     notes: rec.notes || '',
     start: rec.start || '',
     end: rec.end || '',
+    address: rec.address || '',
     miles: s(rec.miles),
     gasPrice: s(rec.gasPrice),
     hasToll: !!rec.hasToll,
     tollCost: s(rec.tollCost),
+    tollPending: !!rec.tollPending,
     hasMeal: !!rec.hasMeal,
     mealCost: s(rec.mealCost),
     hasRoom: !!rec.hasRoom,
@@ -135,11 +143,6 @@ export class AddComponent implements OnInit {
   editId: string | null = null;
   private editCreatedAt: string | undefined;
 
-  /** Scratch input for saving a new location -- not part of the GigRecord
-   * being built; address is a reference label only (no geocoding, this app
-   * stays offline/no-account by design). */
-  locationAddress = '';
-
   async ngOnInit(): Promise<void> {
     const rec = this.state.editRecord();
     if (rec) {
@@ -154,15 +157,36 @@ export class AddComponent implements OnInit {
 
   setType(t: GigType): void {
     this.fm.type = t;
+    // F5: only income + rehearsal carry a location. Drop a half-entered
+    // address when the entry becomes an expense so it can't be saved on one.
+    if (t === 'expense') this.fm.address = '';
   }
 
-  /** Fills the description AND miles from a previously-saved gig location --
-   * the actual auto-fill: mileage is looked up, not re-typed. */
-  pickLocation(loc: SavedLocation): void {
+  /** True for the types that have a location (F5). */
+  get locationEnabled(): boolean {
+    return this.fm.type !== 'expense';
+  }
+
+  /** Fills description, miles AND address from a previously-saved location --
+   * the actual auto-fill: all three are looked up, not re-typed (F2). */
+  pickLocation(loc: SavedLocation | null): void {
+    if (!loc) return;
     this.fm.desc = loc.name;
     if (loc.miles != null) {
       this.fm.miles = String(loc.miles);
     }
+    this.fm.address = loc.address ?? '';
+  }
+
+  /** Bound to the pick-list <select>. Always reset to '' after a pick so the
+   * control shows the placeholder again, not the last-chosen location. */
+  locationPick = '';
+
+  /** Called from the pick-list <select>. */
+  onLocationSelect(name: string): void {
+    if (!name) return;
+    this.pickLocation(this.savedLocations().find((l) => l.name === name) ?? null);
+    this.locationPick = '';
   }
 
   /** Saves the current description + address + whatever's in Miles right
@@ -172,11 +196,10 @@ export class AddComponent implements OnInit {
     this.savedLocations.set(
       await this.db.saveSavedLocation({
         name: this.fm.desc,
-        address: this.locationAddress,
+        address: this.fm.address,
         miles: isNaN(miles) ? undefined : miles,
       }),
     );
-    this.locationAddress = '';
   }
 
   async removeLocation(name: string): Promise<void> {
@@ -186,13 +209,18 @@ export class AddComponent implements OnInit {
   get calcInput(): CalcInput {
     const f = this.fm;
     return {
-      amount: f.type === 'income' ? f.amount : '',
+      // F1: expense carries an amount too (what it cost); only rehearsal
+      // has no amount concept. Matches the legacy calc(), which passed
+      // f.amount for every type.
+      amount: f.type === 'rehearsal' ? '' : f.amount,
       type: f.type,
       hasTips: f.type === 'income' && f.hasTips,
       tipsAmount: f.tipsAmount,
       tipsInTax: f.tipsInTax,
+      // F4: a pending toll contributes nothing to the cost math until a
+      // real number is entered.
       hasToll: f.hasToll,
-      tollCost: f.tollCost,
+      tollCost: f.tollPending ? '' : f.tollCost,
       hasMeal: f.hasMeal,
       mealCost: f.mealCost,
       hasOther: f.hasOther,
@@ -222,8 +250,10 @@ export class AddComponent implements OnInit {
     const p = this.calc;
     const irsRate = this.taxSettings.irsRate();
     const combinedRate = this.taxSettings.combinedRatePct();
-    const hasIncome = (parseFloat(f.amount) || 0) > 0 || p.tips > 0;
-    if (!hasIncome && !p.trueCosts && !p.hours) return [];
+    const isE = f.type === 'expense';
+    const hasIncome = isI && ((parseFloat(f.amount) || 0) > 0 || p.tips > 0);
+    const hasExpense = isE && p.base > 0;
+    if (!hasIncome && !hasExpense && !p.trueCosts && !p.hours) return [];
 
     const rows: PreviewItem[] = [];
     const row = (l: string, v: string, cls = '') => rows.push({ kind: 'row', l, v, cls });
@@ -239,6 +269,7 @@ export class AddComponent implements OnInit {
     if (p.miles > 0) row(`IRS deduction ($${irsRate}/mi)`, money(p.irsDed), 'g');
     if (p.meal > 0) row('Meal (50% ded.)', money(p.meal) + ' → ' + money(p.dedMeals) + ' deducted');
     if (p.room > 0) row('Room rental (100% ded.)', money(p.room), 'g');
+    if (hasExpense) row('Amount spent', money(p.base), 'r');
     if (p.trueCosts > 0) row('Total out-of-pocket', money(p.trueCosts), 'r');
     if (p.taxSavings > 0) row('Est. tax savings', money(p.taxSavings), 'g');
     if (isI && p.seTax > 0) row('SE tax (15.3%)', money(p.seTax), 'r');
@@ -285,13 +316,20 @@ export class AddComponent implements OnInit {
       payDate: f.payDate,
       type: f.type,
       desc: f.desc.trim(),
-      amount: f.type === 'income' ? num(f.amount) : 0,
+      // F1: an expense stores what it cost in `amount` too (rehearsal has
+      // none). Fixes Log rows that always read -$0.00.
+      amount: f.type === 'rehearsal' ? 0 : num(f.amount),
       payMethod: f.payMethod,
       notes: f.notes,
       start: f.start,
       end: f.end,
+      // F2/F5: address is income + rehearsal only.
+      address: f.type === 'expense' ? '' : f.address.trim(),
       hasToll: f.hasToll,
-      tollCost: f.hasToll ? num(f.tollCost) : 0,
+      tollCost: f.hasToll && !f.tollPending ? num(f.tollCost) : 0,
+      // F4: only meaningful together with hasToll; false unless the amount
+      // was explicitly deferred.
+      tollPending: f.hasToll && f.tollPending,
       hasMeal: f.hasMeal,
       mealCost: f.hasMeal ? num(f.mealCost) : 0,
       hasOther: f.hasOther,
@@ -332,7 +370,7 @@ export class AddComponent implements OnInit {
     this.fm = blankForm();
     this.editId = null;
     this.editCreatedAt = undefined;
-    this.locationAddress = '';
+    this.locationPick = '';
     this.error.set('');
   }
 

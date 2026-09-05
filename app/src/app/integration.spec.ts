@@ -141,20 +141,22 @@ describe('GigTracker integration', () => {
     expect(state.editId()).toBeNull();
   });
 
-  it('saved location round-trips through IndexedDB and auto-fills description + miles', async () => {
+  it('saved location round-trips through IndexedDB and auto-fills description, miles AND address (F2)', async () => {
     await db.saveSavedLocation({ name: 'The Blue Room', address: '5 Jazz St', miles: 12.5 });
 
     fixture = TestBed.createComponent(App);
     await settle(); // starts on Add
-    await waitFor(() => !!el().querySelector('.loc-pick'), 'saved-location chip rendered');
-
-    const chip = Array.from(el().querySelectorAll<HTMLButtonElement>('.loc-pick')).find((b) =>
-      b.textContent!.includes('The Blue Room'),
+    await waitFor(
+      () => !!el().querySelector('select[name="locationPick"]'),
+      'saved-location pick-list rendered',
     );
-    expect(chip).toBeTruthy();
-    expect(chip!.textContent).toContain('12.5 mi');
 
-    chip!.click();
+    const select = el().querySelector<HTMLSelectElement>('select[name="locationPick"]')!;
+    const opt = Array.from(select.options).find((o) => o.textContent!.includes('The Blue Room'));
+    expect(opt).toBeTruthy();
+
+    select.value = opt!.value;
+    select.dispatchEvent(new Event('change'));
     await waitFor(
       () => el().querySelector<HTMLInputElement>('input[name="desc"]')?.value === 'The Blue Room',
       'description filled from the picked location',
@@ -162,5 +164,51 @@ describe('GigTracker integration', () => {
 
     expect(el().querySelector<HTMLInputElement>('input[name="desc"]')!.value).toBe('The Blue Room');
     expect(el().querySelector<HTMLInputElement>('input[name="miles"]')!.value).toBe('12.5');
+    expect(el().querySelector<HTMLInputElement>('input[name="address"]')!.value).toBe('5 Jazz St');
+  });
+
+  it('the location pick-list and address field are hidden for an expense (F5)', async () => {
+    await db.saveSavedLocation({ name: 'The Blue Room', address: '5 Jazz St', miles: 12.5 });
+
+    fixture = TestBed.createComponent(App);
+    await settle();
+    await waitFor(
+      () => !!el().querySelector('select[name="locationPick"]'),
+      'pick-list rendered for the default income type',
+    );
+
+    el().querySelector<HTMLButtonElement>('.tbtn:nth-child(3)')!.click(); // Expense Only
+    await settle();
+
+    expect(el().querySelector('select[name="locationPick"]')).toBeNull();
+    expect(el().querySelector('input[name="address"]')).toBeNull();
+  });
+
+  it('an expense entered with an amount shows -$amount in the Log, not -$0.00 (F1)', async () => {
+    fixture = TestBed.createComponent(App);
+    await settle();
+
+    el().querySelector<HTMLButtonElement>('.tbtn:nth-child(3)')!.click(); // Expense Only
+    await settle();
+
+    const desc = el().querySelector<HTMLInputElement>('input[name="desc"]')!;
+    desc.value = 'New strings';
+    desc.dispatchEvent(new Event('input'));
+    const amount = el().querySelector<HTMLInputElement>('input[name="amount"]')!;
+    amount.value = '42';
+    amount.dispatchEvent(new Event('input'));
+    await settle();
+
+    Array.from(el().querySelectorAll<HTMLButtonElement>('button.btn'))
+      .find((b) => b.textContent!.includes('Save Expense'))!
+      .click();
+    await settle();
+    await clickTab('log');
+    await waitFor(
+      () => (el().querySelector('.card-amt')?.textContent ?? '').includes('42'),
+      'expense amount rendered in the Log',
+    );
+
+    expect(el().querySelector('.card-amt')!.textContent!.trim()).toBe('-$42.00');
   });
 });

@@ -176,3 +176,28 @@ describe('LogComponent pagination', () => {
     expect(component.page()).toBe(1);
   });
 });
+
+describe('LogComponent — location links + pending toll (F2/F4)', () => {
+  function make(): LogComponent {
+    TestBed.configureTestingModule({ imports: [LogComponent] });
+    const fixture = TestBed.createComponent(LogComponent);
+    return fixture.componentInstance;
+  }
+
+  it('wazeUrl / mapsUrl URL-encode the address', () => {
+    const c = make();
+    const addr = '12 Main St, Tampa FL';
+    expect(c.wazeUrl(addr)).toBe('https://waze.com/ul?q=12%20Main%20St%2C%20Tampa%20FL');
+    expect(c.mapsUrl(addr)).toBe(
+      'https://www.google.com/maps/search/?api=1&query=12%20Main%20St%2C%20Tampa%20FL',
+    );
+  });
+
+  it('tollPending is true only when hasToll AND tollPending are both set', () => {
+    const c = make();
+    expect(c.tollPending(rec({ hasToll: true, tollPending: true }))).toBe(true);
+    expect(c.tollPending(rec({ hasToll: true, tollPending: false }))).toBe(false);
+    expect(c.tollPending(rec({ hasToll: false, tollPending: true }))).toBe(false);
+    expect(c.tollPending(rec({}))).toBe(false);
+  });
+});

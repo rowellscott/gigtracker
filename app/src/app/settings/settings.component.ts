@@ -7,7 +7,7 @@ import {
   computed,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { GigDbService, GigRecord } from '../services/gig-db.service';
+import { GigDbService, GigRecord, SavedLocation } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
 
 /**
@@ -216,6 +216,11 @@ export class SettingsComponent {
   readonly recordCount = signal<number>(0);
   readonly status = signal<string>('');
 
+  /** F2: the same saved locations the Add screen's pick-list uses, managed
+   * from here (add / delete). `newLoc` backs the add-row inputs. */
+  readonly savedLocations = signal<readonly SavedLocation[]>([]);
+  newLoc: { name: string; address: string; miles: string } = { name: '', address: '', miles: '' };
+
   readonly lastBackupLabel = computed(() => {
     const last = this.lastBackupAt();
     if (!last) return 'Never';
@@ -231,8 +236,34 @@ export class SettingsComponent {
     this.cfg = { ...this.taxSettings.settings() };
     this.lastBackupAt.set(await this.db.kvGet<string>('lastBackupAt'));
     this.recordCount.set((await this.db.recsGetAll()).length);
+    this.savedLocations.set(await this.db.getSavedLocations());
     // `cfg` is a plain object (it backs `[(ngModel)]`), so this async write
     // needs an explicit nudge -- the signals above schedule their own.
+    this.cdr.markForCheck();
+  }
+
+  async addLocation(): Promise<void> {
+    const name = this.newLoc.name.trim();
+    if (!name) {
+      this.status.set('Location needs a name.');
+      return;
+    }
+    const miles = parseFloat(this.newLoc.miles);
+    this.savedLocations.set(
+      await this.db.saveSavedLocation({
+        name,
+        address: this.newLoc.address.trim() || undefined,
+        miles: isNaN(miles) ? undefined : miles,
+      }),
+    );
+    this.newLoc = { name: '', address: '', miles: '' };
+    this.status.set(`Saved location “${name}”.`);
+    this.cdr.markForCheck();
+  }
+
+  async deleteLocation(name: string): Promise<void> {
+    this.savedLocations.set(await this.db.removeSavedLocation(name));
+    this.status.set(`Removed “${name}”.`);
     this.cdr.markForCheck();
   }
 

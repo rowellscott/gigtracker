@@ -133,4 +133,20 @@ export class LogComponent implements OnInit {
   pillLabel(r: GigRecord): string {
     return r.type === 'income' ? 'income gig' : r.type;
   }
+
+  /** F4: the trip had a toll but no amount was entered yet. */
+  tollPending(r: GigRecord): boolean {
+    return !!r.hasToll && !!r.tollPending;
+  }
+
+  /** F2: deep links for a saved address. `geo:`-style app handoff isn't
+   * reliable cross-platform, so these are the documented web URLs both
+   * apps accept and that Android resolves to the installed app. */
+  wazeUrl(address: string): string {
+    return 'https://waze.com/ul?q=' + encodeURIComponent(address);
+  }
+
+  mapsUrl(address: string): string {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+  }
 }

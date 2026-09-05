@@ -156,3 +156,84 @@ describe('mergeImportedRecords', () => {
     expect(newer.toSave[0].desc).toBe('newer');
   });
 });
+
+// --- F2: Saved-locations management on the Settings screen -----------------
+import { TestBed } from '@angular/core/testing';
+import { SettingsComponent } from './settings.component';
+import { GigDbService, SavedLocation } from '../services/gig-db.service';
+import { TaxSettingsService } from '../services/tax-settings.service';
+
+describe('SettingsComponent — saved locations (F2)', () => {
+  async function mount(initial: SavedLocation[] = []) {
+    let locations = [...initial];
+    const dbStub = {
+      kvGet: () => Promise.resolve(null),
+      kvSet: () => Promise.resolve(),
+      recsGetAll: () => Promise.resolve([]),
+      getSavedLocations: () =>
+        Promise.resolve([...locations].sort((a, b) => a.name.localeCompare(b.name))),
+      saveSavedLocation: (loc: SavedLocation) => {
+        const name = loc.name.trim();
+        const cleaned: SavedLocation = { name };
+        if (loc.address?.trim()) cleaned.address = loc.address.trim();
+        if (loc.miles != null && !isNaN(loc.miles)) cleaned.miles = loc.miles;
+        locations = [...locations.filter((l) => l.name !== name), cleaned];
+        return Promise.resolve([...locations].sort((a, b) => a.name.localeCompare(b.name)));
+      },
+      removeSavedLocation: (name: string) => {
+        locations = locations.filter((l) => l.name !== name);
+        return Promise.resolve([...locations]);
+      },
+    };
+    await TestBed.configureTestingModule({
+      imports: [SettingsComponent],
+      providers: [
+        { provide: GigDbService, useValue: dbStub },
+        {
+          provide: TaxSettingsService,
+          useValue: {
+            reload: () => Promise.resolve(),
+            settings: () => DEFAULT_TAX_SETTINGS,
+            save: () => Promise.resolve(),
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SettingsComponent);
+    const cmp = fixture.componentInstance;
+    await cmp.load();
+    return cmp;
+  }
+
+  it('lists existing locations on load', async () => {
+    const cmp = await mount([
+      { name: 'Zed Hall', miles: 9 },
+      { name: 'Ace', address: '1 A St' },
+    ]);
+    expect(cmp.savedLocations().map((l) => l.name)).toEqual(['Ace', 'Zed Hall']);
+  });
+
+  it('addLocation saves and clears the form', async () => {
+    const cmp = await mount();
+    cmp.newLoc = { name: 'Studio B', address: '9 Ivy Rd', miles: '8' };
+    await cmp.addLocation();
+    expect(cmp.savedLocations()).toEqual([{ name: 'Studio B', address: '9 Ivy Rd', miles: 8 }]);
+    expect(cmp.newLoc).toEqual({ name: '', address: '', miles: '' });
+  });
+
+  it('addLocation with a blank name is rejected', async () => {
+    const cmp = await mount();
+    cmp.newLoc = { name: '   ', address: 'x', miles: '1' };
+    await cmp.addLocation();
+    expect(cmp.savedLocations()).toEqual([]);
+  });
+
+  it('deleteLocation removes it', async () => {
+    const cmp = await mount([
+      { name: 'Gone', miles: 1 },
+      { name: 'Stay', miles: 2 },
+    ]);
+    await cmp.deleteLocation('Gone');
+    expect(cmp.savedLocations().map((l) => l.name)).toEqual(['Stay']);
+  });
+});

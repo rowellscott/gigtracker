@@ -16,8 +16,16 @@ export interface GigRecord {
   notes?: string;
   start?: string;
   end?: string;
+  /** F2: street address for the gig/rehearsal location, a plain reference
+   * string the Log turns into Waze / Maps links. income + rehearsal only
+   * (F5: expenses just use their description). */
+  address?: string;
   hasToll?: boolean;
   tollCost?: number;
+  /** F4: the trip had a toll but the amount isn't known yet (SunPass bills
+   * later). Distinct from tollCost 0 -- the Log surfaces it as "amount TBD"
+   * so it doesn't silently read as a free trip. */
+  tollPending?: boolean;
   hasMeal?: boolean;
   mealCost?: number;
   hasOther?: boolean;
