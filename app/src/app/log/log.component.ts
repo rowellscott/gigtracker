@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
 import { GigDbService, GigRecord } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
 import { AppStateService } from '../services/app-state.service';
@@ -12,6 +12,7 @@ const PAGE_SIZE = 20;
   standalone: true,
   templateUrl: './log.component.html',
   styleUrl: './log.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LogComponent implements OnInit {
   private gigDb = inject(GigDbService);

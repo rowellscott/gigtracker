@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { GigDbService, GigRecord } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
@@ -12,6 +12,7 @@ const sum = (arr: GigRecord[], key: keyof GigRecord): number =>
   imports: [DecimalPipe],
   templateUrl: './summary.component.html',
   styleUrl: './summary.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SummaryComponent implements OnInit {
   private gigDb = inject(GigDbService);

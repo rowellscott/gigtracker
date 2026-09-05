@@ -1,4 +1,11 @@
-import { ChangeDetectorRef, Component, inject, signal, computed } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GigDbService } from '../services/gig-db.service';
 import { TaxSettingsService } from '../services/tax-settings.service';
@@ -185,6 +192,7 @@ export function mergeImportedRecords(
   imports: [FormsModule],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsComponent {
   private db = inject(GigDbService);
