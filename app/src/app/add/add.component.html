@@ -54,7 +54,7 @@
         (ngModelChange)="onLocationSelect($event)"
         aria-label="Fill from a saved location"
       >
-        <option value="">— saved location (fills description, miles, address) —</option>
+        <option value="">— pick a saved location —</option>
         @for (loc of savedLocations(); track loc.name) {
           <option [value]="loc.name">
             {{ loc.name }}
@@ -68,46 +68,38 @@
   }
 
   <label>Description *</label>
-  <div class="desc-row">
-    <input
-      type="text"
-      name="desc"
-      [(ngModel)]="fm.desc"
-      [placeholder]="
-        fm.type === 'income'
-          ? 'Club gig, session, private event…'
-          : fm.type === 'rehearsal'
-            ? 'Band rehearsal, load-in, meeting…'
-            : 'Strings, parking, software…'
-      "
-    />
-    @if (locationEnabled) {
+  <input
+    type="text"
+    name="desc"
+    [(ngModel)]="fm.desc"
+    [placeholder]="
+      fm.type === 'income'
+        ? 'Club gig, session, private event…'
+        : fm.type === 'rehearsal'
+          ? 'Band rehearsal, load-in, meeting…'
+          : 'Strings, parking, software…'
+    "
+  />
+
+  @if (locationEnabled) {
+    <label>Location address (optional)</label>
+    <div class="desc-row">
+      <input
+        type="text"
+        name="address"
+        placeholder="12 Main St, Tampa FL"
+        [(ngModel)]="fm.address"
+      />
       <button
         type="button"
         class="loc-save"
-        title="Save this description + address + miles as a location"
+        title="Save this as a reusable location (name, address, miles)"
         [disabled]="!fm.desc.trim()"
         (click)="saveCurrentLocation()"
       >
         ★
       </button>
-    }
-  </div>
-
-  @if (locationEnabled) {
-    <label
-      >Location address (optional)
-      <input
-        type="text"
-        name="address"
-        placeholder="12 Main St, Tampa FL — opens in Waze / Maps from the Log"
-        [(ngModel)]="fm.address"
-      />
-    </label>
-    <p class="note">
-      Miles + address are saved together when you tap ★, so picking this location later fills in all
-      three. Manage saved locations in ⚙ Settings.
-    </p>
+    </div>
   }
 
   @if (fm.type !== 'rehearsal') {
