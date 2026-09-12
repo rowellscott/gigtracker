@@ -1,4 +1,4 @@
-const CACHE = 'gigtracker-v4';
+const CACHE = 'gigtracker-v5';
 const SHELL = ['./', './index.html', './manifest.json', './sw.js', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

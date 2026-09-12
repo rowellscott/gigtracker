@@ -28,7 +28,7 @@
   --grn-t:#4ade80;--red-t:#f87171;--blu-t:#93c5fd;--amb-t:#fbbf24
 }}
 html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--t)}
-#app{max-width:480px;margin:0 auto;min-height:100vh;min-height:100dvh;background:var(--bg);display:flex;flex-direction:column}
+#app{max-width:480px;margin:0 auto;height:100vh;height:100dvh;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
 /* Topbar */
 .topbar{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:.5px solid var(--bdr);background:var(--bg);position:sticky;top:0;z-index:10;flex-shrink:0}
 .topbar-title{font-size:16px;font-weight:700}
@@ -127,6 +127,8 @@ textarea{resize:vertical;min-height:60px;font-size:14px}
 /* Misc */
 .sep{height:.5px;background:var(--bdr);margin:12px 0}
 .sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);margin:16px 0 8px}
+.log-month{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin:16px 0 8px;padding-bottom:4px;border-bottom:.5px solid var(--bdr)}
+.log-month:first-child{margin-top:2px}
 .note{font-size:12px;color:var(--t3);line-height:1.5;margin-top:4px}
 .empty{text-align:center;color:var(--t3);padding:48px 20px;font-size:14px;line-height:1.8}
 .back-btn{background:none;border:none;color:var(--blu-t);cursor:pointer;font-size:14px;font-family:inherit;padding:0;font-weight:600;margin-bottom:12px;display:block}
@@ -318,6 +320,8 @@ let inLocations  = false;
 let editingLocId = null;
 let expandedId = null;
 let logFilter  = 'all';
+const LOG_PAGE = 20;
+let logVisible = LOG_PAGE;
 let editId     = null;
 let openAcc    = new Set(['taxes']);
 let cfg = {federalRate:24, stateRate:0, irsRate:0.725, trueCostRate:0.50, mpg:28};
@@ -677,6 +681,13 @@ async function saveCurrentLocation() {
 // ═══════════════════════════════════════════════════════
 // LOG SCREEN
 // ═══════════════════════════════════════════════════════
+function monthLabel(d) {
+  if (!d) return 'No date';
+  const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const [y, m] = d.split('-');
+  return `${names[parseInt(m, 10) - 1] || ''} ${y}`.trim();
+}
+
 async function renderLog() {
   const all = await recsGetAll();
   const filtered = logFilter === 'all' ? all : all.filter(r => r.type === logFilter);
@@ -685,12 +696,32 @@ async function renderLog() {
       `<button class="fbtn ${logFilter===ft?'active':''}" onclick="setFilter('${ft}')">${ft==='all'?'All':ft.charAt(0).toUpperCase()+ft.slice(1)}</button>`
     ).join('')
   }</div>`;
-  document.getElementById('mc').innerHTML = filters +
-    (filtered.length === 0
-      ? `<div class="empty">No records yet.<br>Tap + Add to log your first entry.</div>`
-      : filtered.map(cardHTML).join('')) +
+
+  if (filtered.length === 0) {
+    document.getElementById('mc').innerHTML = filters +
+      `<div class="empty">No records yet.<br>Tap + Add to log your first entry.</div>` +
+      '<div style="height:88px"></div>';
+    return;
+  }
+
+  const visible   = filtered.slice(0, logVisible);
+  const remaining = filtered.length - visible.length;
+
+  let list = '', curMonth = null;
+  for (const r of visible) {
+    const lbl = monthLabel(r.date);
+    if (lbl !== curMonth) { curMonth = lbl; list += `<div class="log-month">${esc(lbl)}</div>`; }
+    list += cardHTML(r);
+  }
+
+  document.getElementById('mc').innerHTML = filters + list +
+    (remaining > 0
+      ? `<button class="btn btn-n" onclick="loadMoreLog()">Load ${Math.min(remaining, LOG_PAGE)} more (${remaining} left)</button>`
+      : '') +
     '<div style="height:88px"></div>';
 }
+
+function loadMoreLog() { logVisible += LOG_PAGE; renderLog(); }
 
 function cardHTML(r) {
   const exp = expandedId === r.id;
@@ -1210,7 +1241,7 @@ function openSettings()  { inSettings = true;  render(); }
 function closeSettings() { inSettings = false; render(); }
 function setType(t)      { f.type = t; render(); }
 function chk(k)          { f[k] = !f[k]; render(); }
-function setFilter(ft)   { logFilter = ft; renderLog(); }
+function setFilter(ft)   { logFilter = ft; logVisible = LOG_PAGE; renderLog(); }
 function toggleExp(id)   { expandedId = expandedId === id ? null : id; renderLog(); }
 
 async function startEdit(id) {
