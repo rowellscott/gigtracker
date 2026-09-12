@@ -491,7 +491,8 @@ async function renderAdd() {
       <div id="loc-suggest"></div>
     </div>
     <label>Address</label>
-    <input type="text" id="loc-address-input" value="${esc(f.address)}" placeholder="Street address, city" oninput="f.address=this.value">
+    <input type="text" id="loc-address-input" value="${esc(f.address)}" placeholder="Street address, city" oninput="f.address=this.value;updateMapLink()">
+    <div id="loc-map-link">${f.address ? `<p class="note">${mapsLinkHTML(f.address)}</p>` : ''}</div>
     <p class="note">Pick a saved location to auto-fill address + miles, or type a new one and tap ☆ to save it.</p>
 
     ${isR ? `<div class="callout c-info" style="margin-top:10px;font-size:12px">All rehearsal costs are 100% deductible business expenses.</div>` : ''}
@@ -644,6 +645,12 @@ function onLocationInput(val) {
     </div>`).join('')}</div>`;
 }
 
+function updateMapLink() {
+  const box = document.getElementById('loc-map-link');
+  if (!box) return;
+  box.innerHTML = f.address ? `<p class="note">${mapsLinkHTML(f.address)}</p>` : '';
+}
+
 function pickLocation(id) {
   const loc = savedLocations.find(l => l.id === id);
   if (!loc) return;
@@ -657,6 +664,7 @@ function pickLocation(id) {
   if (nameEl)  nameEl.value  = f.locationName;
   if (addrEl)  addrEl.value  = f.address;
   if (milesEl) milesEl.value = f.miles;
+  updateMapLink();
 
   const box = document.getElementById('loc-suggest');
   if (box) box.innerHTML = '';
