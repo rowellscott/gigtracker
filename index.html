@@ -48,6 +48,16 @@ input,textarea,select{width:100%;padding:10px 12px;border:.5px solid var(--bdr2)
 input:focus,textarea:focus{border-color:var(--blu);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 textarea{resize:vertical;min-height:60px;font-size:14px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Location combobox */
+.combo-wrap{position:relative;display:flex;gap:6px}
+.star-btn{flex-shrink:0;width:46px;border:.5px solid var(--bdr2);border-radius:8px;background:none;font-size:19px;line-height:1;cursor:pointer;color:var(--t2);font-family:inherit}
+.star-btn:active{opacity:.8}
+.combo-list{position:absolute;left:0;right:52px;top:100%;margin-top:4px;background:var(--bg);border:.5px solid var(--bdr2);border-radius:8px;max-height:190px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.15);z-index:20}
+.combo-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:.5px solid var(--bdr)}
+.combo-item:last-child{border-bottom:none}
+.combo-item:active{background:var(--bg2)}
+.combo-item .ci-addr{font-size:11px;color:var(--t3);margin-top:1px}
+.addr-link{color:var(--blu-t);text-decoration:none;font-weight:600}
 /* Type buttons */
 .type-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:4px}
 .tbtn{padding:10px 4px;border:.5px solid var(--bdr2);border-radius:8px;background:none;color:var(--t2);cursor:pointer;font-size:12px;font-family:inherit;text-align:center;line-height:1.4;font-weight:500}
@@ -176,6 +186,7 @@ textarea{resize:vertical;min-height:60px;font-size:14px}
     <div class="topbar-title">🎸 GigTracker 2026</div>
     <div class="topbar-r">
       <span class="bk-dot never" id="bk-dot" title="Tap ⚙ to export a backup"></span>
+      <button class="icon-btn" id="locations-btn" onclick="openLocations()" title="Saved locations">📍</button>
       <button class="icon-btn" id="settings-btn" onclick="openSettings()" title="Settings &amp; backup">⚙</button>
     </div>
   </div>
@@ -197,13 +208,19 @@ let _idb = null;
 async function openIDB() {
   if (_idb) return _idb;
   return new Promise((res, rej) => {
-    const r = indexedDB.open('GigTrackerDB', 1);
+    const r = indexedDB.open('GigTrackerDB', 2);
     r.onupgradeneeded = e => {
       const d = e.target.result;
-      if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'id'});
-      if (!d.objectStoreNames.contains('kv'))   d.createObjectStore('kv',  {keyPath:'k'});
+      if (!d.objectStoreNames.contains('recs'))      d.createObjectStore('recs', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('kv'))        d.createObjectStore('kv',  {keyPath:'k'});
+      if (!d.objectStoreNames.contains('locations')) d.createObjectStore('locations', {keyPath:'id'});
     };
-    r.onsuccess = e => { _idb = e.target.result; res(_idb); };
+    r.onblocked = () => console.warn('IndexedDB upgrade blocked — close other open tabs of this app.');
+    r.onsuccess = e => {
+      _idb = e.target.result;
+      _idb.onversionchange = () => { _idb.close(); _idb = null; };
+      res(_idb);
+    };
     r.onerror   = () => rej(r.error);
   });
 }
@@ -231,6 +248,14 @@ async function iAll(store) {
     req.onerror   = () => rej(req.error);
   });
 }
+async function iDelete(store, key) {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const req = db.transaction(store,'readwrite').objectStore(store).delete(key);
+    req.onsuccess = () => res();
+    req.onerror   = () => rej(req.error);
+  });
+}
 const kvGet = k => iGet('kv', k).then(r => r != null ? r.v : null);
 const kvSet = (k, v) => iPut('kv', {k, v});
 
@@ -245,6 +270,21 @@ async function recSave(r) {
 async function recMarkDeleted(id) {
   const r = await iGet('recs', id);
   if (r) { r.deleted = true; r.updatedAt = new Date().toISOString(); await iPut('recs', r); }
+}
+
+// ═══════════════════════════════════════════════════════
+// SAVED LOCATIONS  — separate store, plain convenience list
+// (records snapshot their own name/address/miles at save time —
+// editing or deleting a saved location never touches past records)
+// ═══════════════════════════════════════════════════════
+let savedLocations = [];
+async function loadSavedLocations() {
+  savedLocations = (await iAll('locations')).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+}
+async function locSave(loc) {
+  loc.updatedAt = new Date().toISOString();
+  await iPut('locations', loc);
+  await loadSavedLocations();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -272,8 +312,10 @@ async function updateBackupDot() {
 // ═══════════════════════════════════════════════════════
 // APP STATE
 // ═══════════════════════════════════════════════════════
-let activeTab  = 'add';
-let inSettings = false;
+let activeTab    = 'log';
+let inSettings   = false;
+let inLocations  = false;
+let editingLocId = null;
 let expandedId = null;
 let logFilter  = 'all';
 let editId     = null;
@@ -284,6 +326,7 @@ let f   = emptyForm();
 function emptyForm() {
   return {
     date:'', payDate:'', type:'income', desc:'', amount:'', payMethod:'',
+    locationName:'', address:'',
     notes:'', start:'', end:'',
     hasToll:false,  tollCost:'',
     hasMeal:false,  mealCost:'',
@@ -363,6 +406,25 @@ function fd(d) { if (!d) return ''; const [y,m,dy] = d.split('-'); return `${m}/
 function newId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
 function prow(l, v, cls) { return `<div class="prow"><span class="pl">${l}</span><span class="pv${cls?' val-'+cls:''}">${v}</span></div>`; }
 
+// Address → "open in maps" link. No backend/geocoding — picks the scheme
+// most likely to hand off to the phone's own nav app per platform.
+function isIOS() {
+  return /iP(hone|ad|od)/.test(navigator.platform) ||
+    (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
+}
+function mapsUrl(address) {
+  const q = encodeURIComponent(String(address||'').trim());
+  if (!q) return '';
+  if (isIOS()) return `https://maps.apple.com/?q=${q}`;
+  if (/Android/i.test(navigator.userAgent)) return `geo:0,0?q=${q}`;
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+function mapsLinkHTML(address) {
+  const url = mapsUrl(address);
+  if (!url) return esc(address||'');
+  return `<a class="addr-link" href="${url}" target="_blank" rel="noopener">📍 ${esc(address)}</a>`;
+}
+
 // ═══════════════════════════════════════════════════════
 // RENDER ROUTER
 // ═══════════════════════════════════════════════════════
@@ -370,6 +432,11 @@ async function render() {
   if (inSettings) {
     document.getElementById('tabs').style.display = 'none';
     await renderSettings();
+    return;
+  }
+  if (inLocations) {
+    document.getElementById('tabs').style.display = 'none';
+    await renderLocations();
     return;
   }
   document.getElementById('tabs').style.display = 'flex';
@@ -404,10 +471,24 @@ async function renderAdd() {
       placeholder="${isI?'Club gig, session, private event…':isR?'Band rehearsal, load-in, meeting…':'Strings, parking, software…'}"
       oninput="f.desc=this.value;upPrev()">
 
-    ${isI ? `
-      <label>Amount received ($)</label>
+    ${(isI || isE) ? `
+      <label>${isI ? 'Amount received ($)' : 'Amount ($)'}</label>
       <input type="number" inputmode="decimal" value="${esc(f.amount)}" placeholder="0.00" step="0.01" oninput="f.amount=this.value;upPrev()">
     ` : ''}
+
+    <div class="sep"></div><div class="sec">Location</div>
+    <label>Location name</label>
+    <div class="combo-wrap">
+      <input type="text" id="loc-name-input" style="flex:1" value="${esc(f.locationName)}"
+        placeholder="Venue, client, studio…"
+        oninput="onLocationInput(this.value)" onfocus="onLocationInput(this.value)"
+        onblur="setTimeout(()=>{const b=document.getElementById('loc-suggest');if(b)b.innerHTML='';},150)">
+      <button type="button" class="star-btn" id="star-btn" onclick="saveCurrentLocation()" title="Save this location">☆</button>
+      <div id="loc-suggest"></div>
+    </div>
+    <label>Address</label>
+    <input type="text" id="loc-address-input" value="${esc(f.address)}" placeholder="Street address, city" oninput="f.address=this.value">
+    <p class="note">Pick a saved location to auto-fill address + miles, or type a new one and tap ☆ to save it.</p>
 
     ${isR ? `<div class="callout c-info" style="margin-top:10px;font-size:12px">All rehearsal costs are 100% deductible business expenses.</div>` : ''}
 
@@ -424,7 +505,7 @@ async function renderAdd() {
     <div class="sep"></div><div class="sec">Travel</div>
 
     <div class="row2">
-      <div><label>Miles driven</label><input type="number" inputmode="decimal" value="${esc(f.miles)}" placeholder="0" step="0.1" oninput="f.miles=this.value;upPrev()"></div>
+      <div><label>Miles driven</label><input type="number" id="f-miles" inputmode="decimal" value="${esc(f.miles)}" placeholder="0" step="0.1" oninput="f.miles=this.value;upPrev()"></div>
       <div><label>Gas ($/gal)</label><input type="number" inputmode="decimal" value="${esc(f.gasPrice)}" placeholder="0.00" step="0.01" oninput="f.gasPrice=this.value;upPrev()"></div>
     </div>
 
@@ -541,6 +622,59 @@ function upPrev() {
 }
 
 // ═══════════════════════════════════════════════════════
+// LOCATION COMBOBOX (type-or-select) + star-save
+// Updates isolated child nodes only — never calls the full render() —
+// so the on-screen keyboard and input focus survive every keystroke/tap.
+// ═══════════════════════════════════════════════════════
+function onLocationInput(val) {
+  f.locationName = val;
+  const box = document.getElementById('loc-suggest');
+  if (!box) return;
+  const q = val.trim().toLowerCase();
+  const matches = (q ? savedLocations.filter(l => l.name.toLowerCase().includes(q)) : savedLocations).slice(0, 8);
+  if (matches.length === 0) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="combo-list">${matches.map(l => `
+    <div class="combo-item" onmousedown="event.preventDefault()" onclick="pickLocation('${l.id}')">
+      <div>${esc(l.name)}</div>
+      ${l.address ? `<div class="ci-addr">${esc(l.address)}</div>` : ''}
+    </div>`).join('')}</div>`;
+}
+
+function pickLocation(id) {
+  const loc = savedLocations.find(l => l.id === id);
+  if (!loc) return;
+  f.locationName = loc.name;
+  f.address      = loc.address || '';
+  if (loc.miles) f.miles = String(loc.miles);
+
+  const nameEl  = document.getElementById('loc-name-input');
+  const addrEl  = document.getElementById('loc-address-input');
+  const milesEl = document.getElementById('f-miles');
+  if (nameEl)  nameEl.value  = f.locationName;
+  if (addrEl)  addrEl.value  = f.address;
+  if (milesEl) milesEl.value = f.miles;
+
+  const box = document.getElementById('loc-suggest');
+  if (box) box.innerHTML = '';
+  upPrev();
+}
+
+async function saveCurrentLocation() {
+  const name = (f.locationName || '').trim();
+  if (!name) { alert('Enter a location name first.'); return; }
+  const existing = savedLocations.find(l => l.name.toLowerCase() === name.toLowerCase());
+  const loc = existing
+    ? {...existing, name, address: f.address || '', miles: parseFloat(f.miles) || 0}
+    : {id: newId(), name, address: f.address || '', miles: parseFloat(f.miles) || 0, createdAt: new Date().toISOString()};
+  await locSave(loc);
+  const btn = document.getElementById('star-btn');
+  if (btn) {
+    btn.textContent = '✓';
+    setTimeout(() => { const b = document.getElementById('star-btn'); if (b) b.textContent = '☆'; }, 1200);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // LOG SCREEN
 // ═══════════════════════════════════════════════════════
 async function renderLog() {
@@ -570,6 +704,11 @@ function cardHTML(r) {
     : `<span class="card-amt val-r">-${c$(r.amount)}</span>`;
 
   const detail = exp ? `<div class="detail">
+    ${(r.locationName || r.address) ? `
+      <div class="dsec">Location</div>
+      ${r.locationName ? `<div class="drow"><span class="dl">Name</span><span class="dv">${esc(r.locationName)}</span></div>` : ''}
+      ${r.address ? `<div class="drow"><span class="dl">Address</span><span class="dv">${mapsLinkHTML(r.address)}</span></div>` : ''}
+    ` : ''}
     ${isI ? `
       <div class="dsec">Income</div>
       <div class="drow"><span class="dl">Base pay</span><span class="dv val-g">${c$(r.amount)}</span></div>
@@ -621,6 +760,7 @@ function cardHTML(r) {
     <div class="card-meta">
       <span class="pill pill-${r.type}">${r.type==='income'?'income gig':r.type}</span>
       ${isEd ? `<span class="pill pill-edit">editing…</span>` : ''}
+      ${r.locationName ? `<span class="pill pill-n">📍 ${esc(r.locationName)}</span>` : ''}
       ${(r.hours||0)>0 ? `<span class="pill pill-n">${r.hours.toFixed(1)} hrs${r.grossHourly!=null?' · '+c$(r.grossHourly)+'/hr':''}</span>` : ''}
       ${(r.miles||0)>0 ? `<span class="pill pill-n">${r.miles} mi</span>` : ''}
       ${(r.tips||0)>0  ? `<span class="pill pill-n">tips +${c$(r.tips)}</span>` : ''}
@@ -769,6 +909,97 @@ async function renderSummary() {
 }
 
 // ═══════════════════════════════════════════════════════
+// SAVED LOCATIONS SCREEN (own top-level screen, same level as Settings)
+// ═══════════════════════════════════════════════════════
+function openLocations()  { inLocations = true;  editingLocId = null; render(); }
+function closeLocations() { inLocations = false; editingLocId = null; render(); }
+
+async function renderLocations() {
+  await loadSavedLocations();
+  const rows = savedLocations.length === 0
+    ? `<div class="empty">No saved locations yet.<br>Add one below, or type a new one on the Add screen and tap ☆.</div>`
+    : savedLocations.map(locCardHTML).join('');
+
+  document.getElementById('mc').innerHTML = `
+    <button class="back-btn" onclick="closeLocations()">← Back</button>
+
+    <div class="sec">Add a location</div>
+    <label>Name</label>
+    <input type="text" id="nl-name" placeholder="Venue, client, studio…">
+    <label>Address</label>
+    <input type="text" id="nl-address" placeholder="Street address, city">
+    <label>Default miles driven</label>
+    <input type="number" id="nl-miles" inputmode="decimal" placeholder="0" step="0.1">
+    <button class="btn btn-b" onclick="addLocationFromScreen()">Save location</button>
+
+    <div class="sep"></div>
+    <div class="sec">Saved locations (${savedLocations.length})</div>
+    ${rows}
+    <div style="height:30px"></div>
+  `;
+}
+
+function locCardHTML(l) {
+  if (editingLocId === l.id) {
+    return `<div class="card editing">
+      <label>Name</label>
+      <input type="text" id="el-name-${l.id}" value="${esc(l.name)}">
+      <label>Address</label>
+      <input type="text" id="el-address-${l.id}" value="${esc(l.address||'')}">
+      <label>Default miles driven</label>
+      <input type="number" id="el-miles-${l.id}" inputmode="decimal" value="${esc(l.miles||'')}" step="0.1">
+      <div class="card-acts">
+        <button class="abt abt-edit" onclick="saveLocEdit('${l.id}')">Save</button>
+        <button class="abt" onclick="cancelLocEdit()">Cancel</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="card">
+    <div class="card-hdr">
+      <div style="min-width:0">
+        <div class="card-name">${esc(l.name)}</div>
+        ${l.address ? `<div class="card-date">${mapsLinkHTML(l.address)}</div>` : ''}
+      </div>
+      ${l.miles ? `<span class="card-amt" style="font-size:14px">${l.miles} mi</span>` : ''}
+    </div>
+    <div class="card-acts">
+      <button class="abt abt-edit" onclick="startEditLoc('${l.id}')">Edit</button>
+      <button class="abt abt-del" onclick="deleteLocation('${l.id}')">Delete</button>
+    </div>
+  </div>`;
+}
+
+function startEditLoc(id) { editingLocId = id; renderLocations(); }
+function cancelLocEdit()  { editingLocId = null; renderLocations(); }
+
+async function saveLocEdit(id) {
+  const name = (document.getElementById(`el-name-${id}`).value || '').trim();
+  if (!name) { alert('Location name is required.'); return; }
+  const address = document.getElementById(`el-address-${id}`).value || '';
+  const miles   = parseFloat(document.getElementById(`el-miles-${id}`).value) || 0;
+  const existing = savedLocations.find(l => l.id === id) || {id, createdAt: new Date().toISOString()};
+  await locSave({...existing, name, address, miles});
+  editingLocId = null;
+  renderLocations();
+}
+
+async function deleteLocation(id) {
+  if (!confirm('Delete this saved location? Past records that used it are not affected.')) return;
+  await iDelete('locations', id);
+  await loadSavedLocations();
+  renderLocations();
+}
+
+async function addLocationFromScreen() {
+  const name = (document.getElementById('nl-name').value || '').trim();
+  if (!name) { alert('Enter a location name.'); return; }
+  const address = document.getElementById('nl-address').value || '';
+  const miles   = parseFloat(document.getElementById('nl-miles').value) || 0;
+  await locSave({id: newId(), name, address, miles, createdAt: new Date().toISOString()});
+  renderLocations();
+}
+
+// ═══════════════════════════════════════════════════════
 // SETTINGS + BACKUP SCREEN
 // ═══════════════════════════════════════════════════════
 async function renderSettings() {
@@ -846,7 +1077,7 @@ async function exportCSV() {
   const recs = await recsGetAll();
   if (recs.length === 0) { alert('No records to export.'); return; }
 
-  const hdr = ['Date','Pay Date','Type','Description','Base Pay','Tips','Tips In Tax','Total Income',
+  const hdr = ['Date','Pay Date','Type','Description','Location Name','Address','Base Pay','Tips','Tips In Tax','Total Income',
     'Hours','Rate ($/hr)','Miles','IRS Ded','Room Rental','Meal','Other',
     'Total Costs','Total Ded','Tax Savings','SE Tax','Income Tax','Net After All',
     'True Hourly','Payment Method','Notes'];
@@ -857,6 +1088,8 @@ async function exportCSV() {
     rows.push([
       r.date, r.payDate, r.type,
       `"${(r.desc||'').replace(/"/g,'""')}"`,
+      `"${(r.locationName||'').replace(/"/g,'""')}"`,
+      `"${(r.address||'').replace(/"/g,'""')}"`,
       (r.amount||0).toFixed(2), (r.tips||0).toFixed(2),
       r.tipsInTax ? 'yes' : 'no', ti.toFixed(2),
       (r.hours||0).toFixed(2),
@@ -881,11 +1114,13 @@ async function exportCSV() {
 
 async function exportJSON() {
   const recs = await recsGetAll();
+  const locs = await iAll('locations');
   const payload = {
     exportedAt: new Date().toISOString(),
-    appVersion: '2.0',
+    appVersion: '2.1',
     taxConfig: cfg,
     records: recs,
+    locations: locs,
   };
   const name = `gigtracker_backup_${new Date().toISOString().split('T')[0]}.json`;
   await shareOrDownload(
@@ -938,9 +1173,22 @@ async function importJSON(input) {
         skipped++;
       }
     }
+
+    let importedLocs = 0;
+    const locs = Array.isArray(data.locations) ? data.locations : [];
+    for (const l of locs) {
+      if (!l.id || !l.name) continue;
+      const existing = await iGet('locations', l.id);
+      if (!existing || (l.updatedAt||'') >= (existing.updatedAt||'')) {
+        await iPut('locations', l);
+        importedLocs++;
+      }
+    }
+    await loadSavedLocations();
+
     await kvSet('lastBackupAt', new Date().toISOString());
     updateBackupDot();
-    alert(`Restored ${imported} records. ${skipped} skipped (already up to date).`);
+    alert(`Restored ${imported} records${importedLocs ? `, ${importedLocs} saved locations` : ''}. ${skipped} record(s) skipped (already up to date).`);
     closeSettings();
   } catch (e) {
     alert('Import failed: ' + e.message);
@@ -976,6 +1224,8 @@ async function startEdit(id) {
     desc:      rec.desc     || '',
     amount:    rec.amount   != null ? String(rec.amount)   : '',
     payMethod: rec.payMethod|| '',
+    locationName: rec.locationName || '',
+    address:      rec.address      || '',
     notes:     rec.notes    || '',
     start:     rec.start    || '',
     end:       rec.end      || '',
@@ -1007,6 +1257,8 @@ async function saveRec() {
     desc:      f.desc,
     amount:    parseFloat(f.amount)    || 0,
     payMethod: f.payMethod,
+    locationName: f.locationName || '',
+    address:      f.address      || '',
     notes:     f.notes,
     start:     f.start,
     end:       f.end,
@@ -1080,10 +1332,17 @@ async function saveCfg() {
 async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
+    let refreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshed) return;
+      refreshed = true;
+      location.reload();
+    });
   }
   f.date = todayStr();
   const savedCfg = await kvGet('appSettings');
   if (savedCfg) cfg = {...cfg, ...savedCfg};
+  await loadSavedLocations();
   await updateBackupDot();
   await render();
 }
