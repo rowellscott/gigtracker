@@ -27,7 +27,7 @@
   --grn-bg:#052e16;--red-bg:#450a0a;--blu-bg:#172554;--amb-bg:#451a03;
   --grn-t:#4ade80;--red-t:#f87171;--blu-t:#93c5fd;--amb-t:#fbbf24
 }}
-html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--t)}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--t)}
 #app{max-width:480px;margin:0 auto;height:100vh;height:100dvh;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
 /* Topbar */
 .topbar{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:.5px solid var(--bdr);background:var(--bg);position:sticky;top:0;z-index:10;flex-shrink:0}
@@ -38,7 +38,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 .bk-dot.never{background:var(--t3)}
 .icon-btn{background:none;border:none;color:var(--t2);cursor:pointer;font-size:20px;line-height:1;padding:2px}
 /* Content & tabs */
-.content{flex:1;padding:14px 16px 0;overflow-y:auto}
+.content{flex:1;padding:14px 16px 0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .tabs{display:flex;border-top:.5px solid var(--bdr);background:var(--bg);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
 .tb{flex:1;padding:10px 4px 9px;background:none;border:none;border-top:2px solid transparent;color:var(--t2);cursor:pointer;font-size:13px;font-family:inherit;font-weight:500}
 .tb.active{color:var(--blu-t);border-top-color:var(--blu)}
