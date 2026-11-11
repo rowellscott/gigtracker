@@ -69,7 +69,7 @@ To start a new beta round from what's currently live, copy root's
 `beta/manifest.json` and `beta/sw.js` don't need touching unless production's
 own manifest fields or SW logic changed.
 
-## Google Sheet sync (beta, 2026-11)
+## Google Sheet sync (in production since 2026-11-11)
 
 Settings → **Connect Google Sheet** keeps records in a Google Sheet the app
 creates in your Drive ("GigTracker Data", or "GigTracker Data (BETA)" from
@@ -78,7 +78,9 @@ by appending a row to its **Inbox** tab (skill: `gig-log`).
 
 - Tabs: `Inbox` (people and Claude write here; GigTracker fills `Imported`
   with the record id), `Records`, `Locations`, `Settings` (GigTracker owns
-  these; edit records in the app, not in the sheet).
+  these; edit records in the app, not in the sheet). `Gigs`, `Rehearsals`
+  and `Expenses` are read-only views: one QUERY formula each over Records
+  (`VIEW_TABS` in `sync.js`), re-created by the next sync if deleted.
 - Merge: newest `updatedAt` wins per record; deletes are kept as
   `deleted = TRUE` so they reach every device. Inbox rows get an id derived
   from their content, so importing on two devices still makes one record.

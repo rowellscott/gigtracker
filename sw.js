@@ -1,5 +1,5 @@
-const CACHE = 'gigtracker-v7';
-const SHELL = ['./', './index.html', './manifest.json', './sw.js', './icon-192.png', './icon-512.png'];
+const CACHE = 'gigtracker-v8';
+const SHELL = ['./', './index.html', './sync.js', './manifest.json', './sw.js', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -19,6 +19,9 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Only the app's own files are cached. Google sign-in and Sheets reads must always reach the
+  // network: a cached spreadsheet read would hand back stale records.
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;

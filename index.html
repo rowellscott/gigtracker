@@ -180,6 +180,11 @@ textarea{resize:vertical;min-height:60px;font-size:14px}
 /* Backup / settings */
 .bk-card{border:.5px solid var(--bdr);border-radius:10px;padding:14px;margin-bottom:10px}
 .bk-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--t2);padding:3px 0}
+/* Google Sheet sync */
+.sync-btn.dirty{color:var(--amb)}
+.sync-btn.err{color:var(--red)}
+.sync-btn.busy{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -188,6 +193,7 @@ textarea{resize:vertical;min-height:60px;font-size:14px}
     <div class="topbar-title">🎸 GigTracker 2026</div>
     <div class="topbar-r">
       <span class="bk-dot never" id="bk-dot" title="Tap ⚙ to export a backup"></span>
+      <button class="icon-btn sync-btn" id="sync-btn" onclick="syncNow(true)" title="Sync with Google Sheet" hidden>⟳</button>
       <button class="icon-btn" id="locations-btn" onclick="openLocations()" title="Saved locations">📍</button>
       <button class="icon-btn" id="settings-btn" onclick="openSettings()" title="Settings &amp; backup">⚙</button>
     </div>
@@ -200,17 +206,19 @@ textarea{resize:vertical;min-height:60px;font-size:14px}
   </div>
 </div>
 
+<script src="sync.js"></script>
 <script>
 'use strict';
 
 // ═══════════════════════════════════════════════════════
 // INDEXEDDB  — all data lives here, on this device
 // ═══════════════════════════════════════════════════════
+const DB_NAME = 'GigTrackerDB'; // beta uses 'GigTrackerDB_beta' (see BETA.md)
 let _idb = null;
 async function openIDB() {
   if (_idb) return _idb;
   return new Promise((res, rej) => {
-    const r = indexedDB.open('GigTrackerDB', 2);
+    const r = indexedDB.open(DB_NAME, 2);
     r.onupgradeneeded = e => {
       const d = e.target.result;
       if (!d.objectStoreNames.contains('recs'))      d.createObjectStore('recs', {keyPath:'id'});
@@ -250,14 +258,6 @@ async function iAll(store) {
     req.onerror   = () => rej(req.error);
   });
 }
-async function iDelete(store, key) {
-  const db = await openIDB();
-  return new Promise((res, rej) => {
-    const req = db.transaction(store,'readwrite').objectStore(store).delete(key);
-    req.onsuccess = () => res();
-    req.onerror   = () => rej(req.error);
-  });
-}
 const kvGet = k => iGet('kv', k).then(r => r != null ? r.v : null);
 const kvSet = (k, v) => iPut('kv', {k, v});
 
@@ -268,25 +268,28 @@ async function recsGetAll() {
 async function recSave(r) {
   r.updatedAt = new Date().toISOString();
   await iPut('recs', r);
+  noteLocalChange();
 }
 async function recMarkDeleted(id) {
   const r = await iGet('recs', id);
-  if (r) { r.deleted = true; r.updatedAt = new Date().toISOString(); await iPut('recs', r); }
+  if (r) { r.deleted = true; r.updatedAt = new Date().toISOString(); await iPut('recs', r); noteLocalChange(); }
 }
 
 // ═══════════════════════════════════════════════════════
 // SAVED LOCATIONS  — separate store, plain convenience list
 // (records snapshot their own name/address/miles at save time —
 // editing or deleting a saved location never touches past records)
+// Deleting only marks a location deleted, so the delete reaches other devices through sync.
 // ═══════════════════════════════════════════════════════
 let savedLocations = [];
 async function loadSavedLocations() {
-  savedLocations = (await iAll('locations')).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  savedLocations = (await iAll('locations')).filter(l => !l.deleted).sort((a,b) => (a.name||'').localeCompare(b.name||''));
 }
 async function locSave(loc) {
   loc.updatedAt = new Date().toISOString();
   await iPut('locations', loc);
   await loadSavedLocations();
+  noteLocalChange();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -324,7 +327,7 @@ const LOG_PAGE = 20;
 let logVisible = LOG_PAGE;
 let editId     = null;
 let openAcc    = new Set(['taxes']);
-let cfg = {federalRate:24, stateRate:0, irsRate:0.725, trueCostRate:0.50, mpg:28};
+let cfg = {...DEFAULT_CFG};
 let f   = emptyForm();
 
 function emptyForm() {
@@ -340,7 +343,7 @@ function emptyForm() {
     miles:'', gasPrice:'',
   };
 }
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() { return localDateStr(); }
 
 // ═══════════════════════════════════════════════════════
 // TAX CALCULATIONS
@@ -368,18 +371,23 @@ function calc(fm, s) {
     let d = tm(fm.end) - tm(fm.start); if (d < 0) d += 1440; hours = d / 60;
   }
 
+  // An "Expense only" amount is money out: a 100% deductible business cost, not income.
+  // (It used to be left out of deductions, so Summary's Schedule C profit came out too high.)
+  const isExpense     = fm.type === 'expense';
+  const expenseAmt    = isExpense ? base : 0;
+
   const fuelCost      = (miles > 0 && mpg > 0) ? (miles/mpg)*gasP : 0;
   const trueCostMiles = miles * trueR;
   const irsDed        = miles * irsR;
   const dedMeals      = meal * 0.5;                    // 50% deductible
-  const totalDed      = irsDed + toll + dedMeals + oth + room;
+  const totalDed      = irsDed + toll + dedMeals + oth + room + expenseAmt;
   const combRate      = (fedR + stR) / 100;
-  const trueCosts     = trueCostMiles + toll + meal + oth + room;
+  const trueCosts     = trueCostMiles + toll + meal + oth + room + expenseAmt;
   const taxSavings    = totalDed * combRate;
 
   // Total income (tips always add to gross; taxable depends on checkbox)
-  const totalIncome   = base + tips;
-  const taxableIncome = base + (tipsInTax ? tips : 0);
+  const totalIncome   = isExpense ? 0 : base + tips;
+  const taxableIncome = isExpense ? 0 : base + (tipsInTax ? tips : 0);
 
   let seTax = 0, incomeTax = 0;
   if (fm.type === 'income' && totalIncome > 0) {
@@ -1024,8 +1032,8 @@ async function saveLocEdit(id) {
 
 async function deleteLocation(id) {
   if (!confirm('Delete this saved location? Past records that used it are not affected.')) return;
-  await iDelete('locations', id);
-  await loadSavedLocations();
+  const loc = await iGet('locations', id);
+  if (loc) await locSave({...loc, deleted: true});
   renderLocations();
 }
 
@@ -1051,6 +1059,10 @@ async function renderSettings() {
   document.getElementById('mc').innerHTML = `
     <button class="back-btn" onclick="closeSettings()">← Back</button>
 
+    <div class="sec">Google Sheet sync</div>
+    <div id="sync-card"></div>
+
+    <div class="sep"></div>
     <div class="sec">Backup & export</div>
     <div class="bk-card">
       <div class="bk-row">
@@ -1063,8 +1075,10 @@ async function renderSettings() {
       </div>
     </div>
     <p class="note" style="margin-bottom:10px">
-      Your data lives on this device only. Export regularly so you never lose it.
-      The amber dot in the header means it's been 14+ days since your last export.
+      ${syncEnabled
+        ? 'Your data lives on this device and in your Google Sheet. A successful sync counts as a backup.'
+        : 'Your data lives on this device only. Export regularly so you never lose it.'}
+      The amber dot in the header means it's been 14+ days since your last backup.
     </p>
 
     <button class="btn btn-b" onclick="exportCSV()">Export CSV (for Numbers / Excel)</button>
@@ -1107,6 +1121,7 @@ async function renderSettings() {
     </div>
     <div style="height:30px"></div>
   `;
+  await renderSyncCard();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1145,7 +1160,7 @@ async function exportCSV() {
   }
 
   const csv  = rows.join('\n');
-  const name = `gigs_${new Date().toISOString().split('T')[0]}.csv`;
+  const name = `gigs_${todayStr()}.csv`;
   await shareOrDownload(new Blob([csv], {type:'text/csv'}), name, 'text/csv');
   await kvSet('lastBackupAt', new Date().toISOString());
   updateBackupDot();
@@ -1161,7 +1176,7 @@ async function exportJSON() {
     records: recs,
     locations: locs,
   };
-  const name = `gigtracker_backup_${new Date().toISOString().split('T')[0]}.json`;
+  const name = `gigtracker_backup_${todayStr()}.json`;
   await shareOrDownload(
     new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'}),
     name, 'application/json'
@@ -1224,6 +1239,7 @@ async function importJSON(input) {
       }
     }
     await loadSavedLocations();
+    noteLocalChange();
 
     await kvSet('lastBackupAt', new Date().toISOString());
     updateBackupDot();
@@ -1256,7 +1272,14 @@ async function startEdit(id) {
   const rec = await iGet('recs', id);
   if (!rec) return;
   editId = id;
-  f = {
+  f = formFromRecord(rec);
+  activeTab = 'add'; render();
+  document.getElementById('mc').scrollTop = 0;
+}
+
+// A stored record → the Add form's fields (the reverse of recordFromForm).
+function formFromRecord(rec) {
+  return {
     date:      rec.date     || '',
     payDate:   rec.payDate  || '',
     type:      rec.type     || 'income',
@@ -1276,8 +1299,17 @@ async function startEdit(id) {
     miles:     rec.miles    != null ? String(rec.miles)    : '',
     gasPrice:  rec.gasPrice != null ? String(rec.gasPrice) : '',
   };
-  activeTab = 'add'; render();
-  document.getElementById('mc').scrollTop = 0;
+}
+
+// Expenses saved before the deduction fix in calc() still carry the old figures. Re-work them on
+// every start (cheap; most runs change nothing), which also fixes any synced from an older copy.
+async function fixExpenseDeductions() {
+  for (const r of await iAll('recs')) {
+    if (r.type !== 'expense' || r.deleted) continue;
+    const fixed = recordFromForm(formFromRecord(r), cfg);
+    if (Math.abs((fixed.totalDed || 0) - (r.totalDed || 0)) < 0.005) continue;
+    await recSave({...r, ...fixed});
+  }
 }
 
 function cancelEdit(doRender = true) {
@@ -1285,29 +1317,29 @@ function cancelEdit(doRender = true) {
   if (doRender) { activeTab = 'log'; render(); }
 }
 
-async function saveRec() {
-  if (!f.desc.trim()) { alert('Please enter a description.'); return; }
-  const p   = calc(f, cfg);
-  const now = new Date().toISOString();
-  const data = {
-    date:      f.date || todayStr(),
-    payDate:   f.payDate,
-    type:      f.type,
-    desc:      f.desc,
-    amount:    parseFloat(f.amount)    || 0,
-    payMethod: f.payMethod,
-    locationName: f.locationName || '',
-    address:      f.address      || '',
-    notes:     f.notes,
-    start:     f.start,
-    end:       f.end,
-    hasToll:   f.hasToll,   tollCost:  f.hasToll  ? parseFloat(f.tollCost)  || 0 : 0,
-    hasMeal:   f.hasMeal,   mealCost:  f.hasMeal  ? parseFloat(f.mealCost)  || 0 : 0,
-    hasOther:  f.hasOther,  otherDesc: f.otherDesc, otherCost: f.hasOther ? parseFloat(f.otherCost)||0 : 0,
-    hasRoom:   f.hasRoom,   roomCost:  f.hasRoom  ? parseFloat(f.roomCost)  || 0 : 0,
-    hasTips:   f.hasTips,   tipsAmount:f.hasTips  ? parseFloat(f.tipsAmount)|| 0 : 0, tipsInTax: f.tipsInTax !== false,
-    miles:     parseFloat(f.miles)    || 0,
-    gasPrice:  parseFloat(f.gasPrice) || 0,
+// A filled-in form → the stored record, with the tax figures worked out from `settings`.
+// Shared by Save and by Inbox rows that sync brings in, so both get identical math.
+function recordFromForm(fm, settings) {
+  const p = calc(fm, settings);
+  return {
+    date:      fm.date || todayStr(),
+    payDate:   fm.payDate,
+    type:      fm.type,
+    desc:      fm.desc,
+    amount:    parseFloat(fm.amount)    || 0,
+    payMethod: fm.payMethod,
+    locationName: fm.locationName || '',
+    address:      fm.address      || '',
+    notes:     fm.notes,
+    start:     fm.start,
+    end:       fm.end,
+    hasToll:   fm.hasToll,   tollCost:  fm.hasToll  ? parseFloat(fm.tollCost)  || 0 : 0,
+    hasMeal:   fm.hasMeal,   mealCost:  fm.hasMeal  ? parseFloat(fm.mealCost)  || 0 : 0,
+    hasOther:  fm.hasOther,  otherDesc: fm.otherDesc, otherCost: fm.hasOther ? parseFloat(fm.otherCost)||0 : 0,
+    hasRoom:   fm.hasRoom,   roomCost:  fm.hasRoom  ? parseFloat(fm.roomCost)  || 0 : 0,
+    hasTips:   fm.hasTips,   tipsAmount:fm.hasTips  ? parseFloat(fm.tipsAmount)|| 0 : 0, tipsInTax: fm.tipsInTax !== false,
+    miles:     parseFloat(fm.miles)    || 0,
+    gasPrice:  parseFloat(fm.gasPrice) || 0,
     // Calculated fields stored alongside raw data
     hours:         p.hours,
     fuelCost:      p.fuelCost,
@@ -1330,6 +1362,28 @@ async function saveRec() {
     tips:          p.tips,
     deleted:       false,
   };
+}
+
+// An Inbox entry (sync.js parseInboxRow) → a record. A saved location fills in the address and
+// miles, unless the row gave its own miles.
+function inboxToRecord(entry, loc, settings) {
+  const fm = {
+    ...emptyForm(),
+    date: entry.date, type: entry.type, desc: entry.desc,
+    amount: String(entry.pay), payMethod: entry.payMethod, notes: entry.notes,
+    start: entry.start, end: entry.end,
+    locationName: loc ? loc.name : entry.location,
+    address: loc ? loc.address || '' : '',
+    miles: entry.miles !== '' ? String(entry.miles) : loc ? String(loc.miles || '') : '',
+  };
+  if (entry.tips > 0) { fm.hasTips = true; fm.tipsAmount = String(entry.tips); }
+  return recordFromForm(fm, settings);
+}
+
+async function saveRec() {
+  if (!f.desc.trim()) { alert('Please enter a description.'); return; }
+  const now  = new Date().toISOString();
+  const data = recordFromForm(f, cfg);
 
   if (editId) {
     const ex = await iGet('recs', editId);
@@ -1362,7 +1416,306 @@ async function saveCfg() {
     mpg:          get('s-mpg') || 28,
   };
   await kvSet('appSettings', cfg);
+  await kvSet('appSettingsUpdatedAt', new Date().toISOString());
+  noteLocalChange();
   closeSettings();
+}
+
+// ═══════════════════════════════════════════════════════
+// GOOGLE SHEET SYNC  — optional; the app works the same without it.
+// The sheet is the copy every device shares, and Claude adds gigs to its Inbox tab.
+// sync.js decides what changes; this part signs in, talks to Google and applies the plan.
+// ═══════════════════════════════════════════════════════
+const GOOGLE_CLIENT_ID = '475531220867-jpalp7p8qmmqvrismv2mk6la0vjt327u.apps.googleusercontent.com';
+// drive.file: GigTracker can only open the spreadsheet it created, never the rest of your Drive.
+const GOOGLE_SCOPE     = 'https://www.googleapis.com/auth/drive.file';
+// Follows the database name, so beta can never write to the real sheet.
+const SYNC_SHEET_NAME  = DB_NAME.endsWith('_beta') ? 'GigTracker Data (BETA)' : 'GigTracker Data';
+const GIS_SRC          = 'https://accounts.google.com/gsi/client';
+const SHEETS_API       = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DRIVE_FILES_API  = 'https://www.googleapis.com/drive/v3/files';
+const SHEET_URL        = id => `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}`;
+const SYNC_DEBOUNCE_MS = 3000;
+const TOKEN_EXPIRY_MARGIN_MS = 60000;
+// Google access tokens last an hour; sessionStorage keeps one across reloads, never past closing the app.
+const TOKEN_STORAGE_KEY = 'gtGoogleToken';
+
+class NeedsSignIn extends Error {}
+
+let syncEnabled   = false;
+let syncConsented = false;
+let syncDirty     = false;
+let changeSeq     = 0;
+let syncTimer     = null;
+let gisLoading    = null;
+let memToken      = null;
+let syncState     = {busy: false, error: '', last: null};
+
+function currentToken() {
+  if (!memToken) {
+    try { memToken = JSON.parse(sessionStorage.getItem(TOKEN_STORAGE_KEY) || 'null'); } catch { memToken = null; }
+  }
+  return memToken && memToken.expiresAt - TOKEN_EXPIRY_MARGIN_MS > Date.now() ? memToken.accessToken : null;
+}
+function forgetToken() {
+  memToken = null;
+  try { sessionStorage.removeItem(TOKEN_STORAGE_KEY); } catch {}
+}
+
+function loadGis() {
+  gisLoading ??= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = GIS_SRC;
+    s.async = true;
+    s.onload = res;
+    s.onerror = () => { gisLoading = null; rej(new Error('Could not reach Google sign-in. Are you offline?')); };
+    document.head.appendChild(s);
+  });
+  return gisLoading;
+}
+
+// Only call with interactive=true from a tap: the sign-in window is a popup.
+async function googleToken(interactive) {
+  const token = currentToken();
+  if (token) return token;
+  if (!interactive) throw new NeedsSignIn('Tap ⟳ to sign in to Google and sync.');
+  await loadGis();
+  return new Promise((res, rej) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPE,
+      prompt: syncConsented ? '' : 'consent',
+      callback: r => {
+        if (r.error) { rej(new Error(`Google sign-in failed: ${r.error}`)); return; }
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, GOOGLE_SCOPE)) {
+          rej(new Error('GigTracker needs the "files it creates" Drive permission to sync. Tap ⟳ and allow it.'));
+          return;
+        }
+        memToken = {accessToken: r.access_token, expiresAt: Date.now() + Number(r.expires_in) * 1000};
+        try { sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(memToken)); } catch {}
+        syncConsented = true;
+        kvSet('syncConsented', true);
+        res(r.access_token);
+      },
+      error_callback: e => rej(new Error(e.type === 'popup_closed' ? 'Sign-in window was closed.' : `Google sign-in failed: ${e.type}`)),
+    });
+    client.requestAccessToken();
+  });
+}
+
+async function googleApi(method, url, body) {
+  const token = await googleToken(false);
+  const res = await fetch(url, {
+    method,
+    headers: {Authorization: `Bearer ${token}`, ...(body ? {'Content-Type': 'application/json'} : {})},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { forgetToken(); throw new NeedsSignIn('Google sign-in expired. Tap ⟳ to sync.'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(`Google said ${res.status}: ${data.error?.message || res.statusText}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+async function writeHeaders(sheetId, tabs) {
+  await googleApi('POST', `${SHEETS_API}/${sheetId}/values:batchUpdate`, {
+    valueInputOption: 'RAW',
+    data: tabs.map(t => ({range: `${t}!A1`, values: [syncHeader(t)]})),
+  });
+}
+
+async function addMissingTabs(sheetId) {
+  const meta = await googleApi('GET', `${SHEETS_API}/${sheetId}?fields=sheets.properties.title`);
+  const have = new Set((meta.sheets || []).map(s => s.properties.title));
+  const missing = Object.values(SYNC_TAB).filter(t => !have.has(t));
+  if (missing.length) {
+    await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
+      requests: missing.map(title => ({addSheet: {properties: {title, gridProperties: {frozenRowCount: 1}}}})),
+    });
+    await writeHeaders(sheetId, missing);
+  }
+  // The view tabs are only for reading the sheet, so a problem making them never stops a sync.
+  await addMissingViews(sheetId, have).catch(e => console.warn('GigTracker: view tabs not added yet', e));
+}
+
+// Gigs / Rehearsals / Expenses: one formula each over Records, marked so editing them warns first.
+async function addMissingViews(sheetId, have) {
+  const missing = VIEW_TABS.filter(v => !have.has(v.title));
+  if (!missing.length) return;
+  const got = await googleApi('GET', `${SHEETS_API}/${sheetId}/values/${encodeURIComponent(`${SYNC_TAB.records}!1:1`)}`);
+  const header = completeHeader((got.values?.[0] || []).map(String), RECORD_FIELDS);
+  const added = await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
+    requests: missing.map(v => ({addSheet: {properties: {title: v.title, gridProperties: {frozenRowCount: 1}}}})),
+  });
+  await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
+    requests: added.replies.map(r => ({addProtectedRange: {protectedRange: {
+      range: {sheetId: r.addSheet.properties.sheetId},
+      warningOnly: true,
+      description: 'Filled from the Records tab. Change records in GigTracker.',
+    }}})),
+  });
+  await googleApi('POST', `${SHEETS_API}/${sheetId}/values:batchUpdate`, {
+    valueInputOption: 'USER_ENTERED',
+    data: missing.map(v => ({range: `${v.title}!A1`, values: [[viewFormula(v, header)]]})),
+  });
+}
+
+async function createSheet() {
+  const tabs = Object.values(SYNC_TAB);
+  const made = await googleApi('POST', SHEETS_API, {
+    properties: {title: SYNC_SHEET_NAME},
+    sheets: tabs.map(title => ({properties: {title, gridProperties: {frozenRowCount: 1}}})),
+  });
+  await writeHeaders(made.spreadsheetId, tabs);
+  return made.spreadsheetId;
+}
+
+// The remembered sheet; else the one this app made on another device; else a new one.
+// Only "not found" moves on: any other error stops the sync rather than risk a second sheet.
+async function ensureSheet() {
+  const saved = await kvGet('syncSheetId');
+  if (saved) {
+    try { await addMissingTabs(saved); return saved; }
+    catch (e) { if (e.status !== 404) throw e; }
+  }
+  const q = `name='${SYNC_SHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`;
+  const found = await googleApi('GET', `${DRIVE_FILES_API}?q=${encodeURIComponent(q)}&orderBy=createdTime&fields=files(id)`);
+  const sheetId = found.files?.[0]?.id || await createSheet();
+  await addMissingTabs(sheetId);
+  await kvSet('syncSheetId', sheetId);
+  return sheetId;
+}
+
+async function syncNow(interactive = false) {
+  if (syncState.busy || !syncEnabled) return;
+  clearTimeout(syncTimer);
+  const seqAtStart = changeSeq;
+  syncState = {...syncState, busy: true, error: ''};
+  paintSync();
+  try {
+    await googleToken(interactive);
+    const sheetId = await ensureSheet();
+    const tabs = Object.values(SYNC_TAB);
+    const ranges = tabs.map(t => `ranges=${encodeURIComponent(t)}`).join('&');
+    // Serial numbers, so dates and times typed into the Inbox read the same whatever their display format.
+    const got = await googleApi('GET',
+      `${SHEETS_API}/${sheetId}/values:batchGet?${ranges}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
+    const remote = Object.fromEntries(Object.keys(SYNC_TAB).map((k, i) => [k, got.valueRanges?.[i]?.values || []]));
+
+    const now = new Date().toISOString();
+    const plan = planSync({
+      local: {recs: await iAll('recs'), locations: await iAll('locations'), cfg, cfgUpdatedAt: await kvGet('appSettingsUpdatedAt')},
+      remote, today: todayStr(), now, buildRecord: inboxToRecord,
+    });
+
+    // Local first: if a sheet write fails afterwards, the next sync finishes the job without duplicates.
+    for (const r of plan.localRecs) await iPut('recs', r);
+    for (const l of plan.localLocations) await iPut('locations', l);
+    if (plan.cfg) { cfg = {...cfg, ...plan.cfg}; await kvSet('appSettings', cfg); }
+    if (plan.cfgUpdatedAt) await kvSet('appSettingsUpdatedAt', plan.cfgUpdatedAt);
+
+    if (plan.updates.length) {
+      await googleApi('POST', `${SHEETS_API}/${sheetId}/values:batchUpdate`, {valueInputOption: 'RAW', data: plan.updates});
+    }
+    for (const [tab, rows] of Object.entries(plan.appends)) {
+      if (!rows.length) continue;
+      await googleApi('POST',
+        `${SHEETS_API}/${sheetId}/values/${encodeURIComponent(`${tab}!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        {values: rows});
+    }
+
+    await kvSet('lastSyncAt', now);
+    await kvSet('lastBackupAt', now);
+    syncDirty = changeSeq !== seqAtStart;
+    await kvSet('syncDirty', syncDirty);
+    syncState.last = {...plan.counts, warnings: plan.warnings};
+    await loadSavedLocations();
+    updateBackupDot();
+    if (plan.localRecs.length || plan.localLocations.length || plan.cfg) refreshAfterSync();
+  } catch (e) {
+    syncState.error = e.message;
+    if (!(e instanceof NeedsSignIn)) console.error(e);
+  } finally {
+    syncState.busy = false;
+    paintSync();
+  }
+}
+
+// Every local edit marks the sheet out of date and syncs shortly after, if already signed in.
+// Signing in needs a tap, so without a live token the ⟳ button just turns amber.
+function noteLocalChange() {
+  if (!syncEnabled) return;
+  changeSeq++;
+  syncDirty = true;
+  kvSet('syncDirty', true);
+  paintSync();
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => { if (currentToken()) syncNow(false); }, SYNC_DEBOUNCE_MS);
+}
+
+// Re-render what sync changed, but never the Add form: that would wipe what's being typed.
+function refreshAfterSync() {
+  if (inSettings || inLocations || activeTab !== 'add') render();
+}
+
+async function connectSync() {
+  syncEnabled = true;
+  await kvSet('syncEnabled', true);
+  await syncNow(true);
+  if (inSettings) render();
+}
+
+async function disconnectSync() {
+  if (!confirm('Stop syncing on this device? Your records stay here and in the sheet.')) return;
+  syncEnabled = false;
+  await kvSet('syncEnabled', false);
+  forgetToken();
+  render();
+  paintSync();
+}
+
+function paintSync() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) {
+    btn.hidden = !syncEnabled;
+    const state = syncState.busy ? 'busy' : syncState.error ? 'err' : syncDirty ? 'dirty' : '';
+    btn.className = `icon-btn sync-btn ${state}`.trim();
+    btn.title = syncState.error || (syncDirty ? 'Changes not synced yet. Tap to sync.' : 'Sync with Google Sheet');
+  }
+  if (inSettings) renderSyncCard();
+}
+
+async function renderSyncCard() {
+  const el = document.getElementById('sync-card');
+  if (!el) return;
+  if (!syncEnabled) {
+    loadGis().catch(() => {});
+    el.innerHTML = `
+      <p class="note" style="margin-bottom:6px">Keep your records in a Google Sheet ("${esc(SYNC_SHEET_NAME)}") so your phone,
+        your computer and Claude all see the same gigs. GigTracker can only open the sheet it creates.</p>
+      <button class="btn btn-b" onclick="connectSync()">Connect Google Sheet</button>`;
+    return;
+  }
+  const [sheetId, lastAt] = [await kvGet('syncSheetId'), await kvGet('lastSyncAt')];
+  const last = syncState.last;
+  el.innerHTML = `
+    <div class="bk-card">
+      <div class="bk-row"><span>Last sync</span>
+        <span style="font-weight:600">${lastAt ? esc(new Date(lastAt).toLocaleString()) : 'Never'}</span></div>
+      ${last ? `<div class="bk-row"><span>Last run</span>
+        <span>${last.imported} from Inbox · ${last.pulled} in · ${last.pushed} out</span></div>` : ''}
+      ${sheetId ? `<div class="bk-row"><span>Sheet</span>
+        <a class="addr-link" href="${SHEET_URL(sheetId)}" target="_blank" rel="noopener">${esc(SYNC_SHEET_NAME)} ↗</a></div>` : ''}
+    </div>
+    ${syncState.error ? `<div class="callout c-warn">${esc(syncState.error)}</div>` : ''}
+    ${last?.warnings?.length ? `<div class="callout c-warn">${last.warnings.map(esc).join('<br>')}</div>` : ''}
+    <button class="btn btn-b" onclick="syncNow(true)" ${syncState.busy ? 'disabled' : ''}>${syncState.busy ? 'Syncing…' : 'Sync now'}</button>
+    <button class="btn btn-n" style="margin-top:8px" onclick="disconnectSync()">Stop syncing on this device</button>
+    <p class="note">Rows added to the sheet's Inbox tab (by Claude or by hand) become records on the next sync.
+      Edit records here, not in the Records tab.</p>`;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1383,7 +1736,20 @@ async function init() {
   if (savedCfg) cfg = {...cfg, ...savedCfg};
   await loadSavedLocations();
   await updateBackupDot();
+  syncEnabled   = !!(await kvGet('syncEnabled'));
+  syncConsented = !!(await kvGet('syncConsented'));
+  syncDirty     = !!(await kvGet('syncDirty'));
+  await fixExpenseDeductions();
+  paintSync();
   await render();
+  // Coming back to the app picks up anything Claude added meanwhile (while the sign-in is fresh).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && currentToken()) syncNow(false);
+  });
+  if (!syncEnabled) return;
+  // Load sign-in ahead of time so a tap on ⟳ opens the popup straight away.
+  loadGis().catch(() => {});
+  if (currentToken()) syncNow(false);
 }
 
 init().catch(err => {
