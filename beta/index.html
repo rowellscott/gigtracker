@@ -371,18 +371,23 @@ function calc(fm, s) {
     let d = tm(fm.end) - tm(fm.start); if (d < 0) d += 1440; hours = d / 60;
   }
 
+  // An "Expense only" amount is money out: a 100% deductible business cost, not income.
+  // (It used to be left out of deductions, so Summary's Schedule C profit came out too high.)
+  const isExpense     = fm.type === 'expense';
+  const expenseAmt    = isExpense ? base : 0;
+
   const fuelCost      = (miles > 0 && mpg > 0) ? (miles/mpg)*gasP : 0;
   const trueCostMiles = miles * trueR;
   const irsDed        = miles * irsR;
   const dedMeals      = meal * 0.5;                    // 50% deductible
-  const totalDed      = irsDed + toll + dedMeals + oth + room;
+  const totalDed      = irsDed + toll + dedMeals + oth + room + expenseAmt;
   const combRate      = (fedR + stR) / 100;
-  const trueCosts     = trueCostMiles + toll + meal + oth + room;
+  const trueCosts     = trueCostMiles + toll + meal + oth + room + expenseAmt;
   const taxSavings    = totalDed * combRate;
 
   // Total income (tips always add to gross; taxable depends on checkbox)
-  const totalIncome   = base + tips;
-  const taxableIncome = base + (tipsInTax ? tips : 0);
+  const totalIncome   = isExpense ? 0 : base + tips;
+  const taxableIncome = isExpense ? 0 : base + (tipsInTax ? tips : 0);
 
   let seTax = 0, incomeTax = 0;
   if (fm.type === 'income' && totalIncome > 0) {
@@ -1267,7 +1272,14 @@ async function startEdit(id) {
   const rec = await iGet('recs', id);
   if (!rec) return;
   editId = id;
-  f = {
+  f = formFromRecord(rec);
+  activeTab = 'add'; render();
+  document.getElementById('mc').scrollTop = 0;
+}
+
+// A stored record → the Add form's fields (the reverse of recordFromForm).
+function formFromRecord(rec) {
+  return {
     date:      rec.date     || '',
     payDate:   rec.payDate  || '',
     type:      rec.type     || 'income',
@@ -1287,8 +1299,17 @@ async function startEdit(id) {
     miles:     rec.miles    != null ? String(rec.miles)    : '',
     gasPrice:  rec.gasPrice != null ? String(rec.gasPrice) : '',
   };
-  activeTab = 'add'; render();
-  document.getElementById('mc').scrollTop = 0;
+}
+
+// Expenses saved before the deduction fix in calc() still carry the old figures. Re-work them on
+// every start (cheap; most runs change nothing), which also fixes any synced from an older copy.
+async function fixExpenseDeductions() {
+  for (const r of await iAll('recs')) {
+    if (r.type !== 'expense' || r.deleted) continue;
+    const fixed = recordFromForm(formFromRecord(r), cfg);
+    if (Math.abs((fixed.totalDed || 0) - (r.totalDed || 0)) < 0.005) continue;
+    await recSave({...r, ...fixed});
+  }
 }
 
 function cancelEdit(doRender = true) {
@@ -1510,11 +1531,36 @@ async function addMissingTabs(sheetId) {
   const meta = await googleApi('GET', `${SHEETS_API}/${sheetId}?fields=sheets.properties.title`);
   const have = new Set((meta.sheets || []).map(s => s.properties.title));
   const missing = Object.values(SYNC_TAB).filter(t => !have.has(t));
+  if (missing.length) {
+    await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
+      requests: missing.map(title => ({addSheet: {properties: {title, gridProperties: {frozenRowCount: 1}}}})),
+    });
+    await writeHeaders(sheetId, missing);
+  }
+  // The view tabs are only for reading the sheet, so a problem making them never stops a sync.
+  await addMissingViews(sheetId, have).catch(e => console.warn('GigTracker: view tabs not added yet', e));
+}
+
+// Gigs / Rehearsals / Expenses: one formula each over Records, marked so editing them warns first.
+async function addMissingViews(sheetId, have) {
+  const missing = VIEW_TABS.filter(v => !have.has(v.title));
   if (!missing.length) return;
-  await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
-    requests: missing.map(title => ({addSheet: {properties: {title, gridProperties: {frozenRowCount: 1}}}})),
+  const got = await googleApi('GET', `${SHEETS_API}/${sheetId}/values/${encodeURIComponent(`${SYNC_TAB.records}!1:1`)}`);
+  const header = completeHeader((got.values?.[0] || []).map(String), RECORD_FIELDS);
+  const added = await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
+    requests: missing.map(v => ({addSheet: {properties: {title: v.title, gridProperties: {frozenRowCount: 1}}}})),
   });
-  await writeHeaders(sheetId, missing);
+  await googleApi('POST', `${SHEETS_API}/${sheetId}:batchUpdate`, {
+    requests: added.replies.map(r => ({addProtectedRange: {protectedRange: {
+      range: {sheetId: r.addSheet.properties.sheetId},
+      warningOnly: true,
+      description: 'Filled from the Records tab. Change records in GigTracker.',
+    }}})),
+  });
+  await googleApi('POST', `${SHEETS_API}/${sheetId}/values:batchUpdate`, {
+    valueInputOption: 'USER_ENTERED',
+    data: missing.map(v => ({range: `${v.title}!A1`, values: [[viewFormula(v, header)]]})),
+  });
 }
 
 async function createSheet() {
@@ -1537,9 +1583,8 @@ async function ensureSheet() {
   }
   const q = `name='${SYNC_SHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`;
   const found = await googleApi('GET', `${DRIVE_FILES_API}?q=${encodeURIComponent(q)}&orderBy=createdTime&fields=files(id)`);
-  let sheetId = found.files?.[0]?.id;
-  if (sheetId) await addMissingTabs(sheetId);
-  else sheetId = await createSheet();
+  const sheetId = found.files?.[0]?.id || await createSheet();
+  await addMissingTabs(sheetId);
   await kvSet('syncSheetId', sheetId);
   return sheetId;
 }
@@ -1694,6 +1739,7 @@ async function init() {
   syncEnabled   = !!(await kvGet('syncEnabled'));
   syncConsented = !!(await kvGet('syncConsented'));
   syncDirty     = !!(await kvGet('syncDirty'));
+  await fixExpenseDeductions();
   paintSync();
   await render();
   // Coming back to the app picks up anything Claude added meanwhile (while the sign-in is fresh).

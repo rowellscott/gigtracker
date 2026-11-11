@@ -7,8 +7,8 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../beta/sync.js', import.meta.url), 'utf8');
 const S = vm.runInThisContext(`${source}
-;({ SYNC_TAB, RECORD_FIELDS, INBOX_COLUMNS, DEFAULT_CFG, syncHeader, localDateStr, columnLetter,
-    parseDate, parseTime, parseAmount, readTable, planSync, inboxRecordId, matchLocation })`);
+;({ SYNC_TAB, RECORD_FIELDS, INBOX_COLUMNS, DEFAULT_CFG, VIEW_TABS, syncHeader, localDateStr, columnLetter,
+    parseDate, parseTime, parseAmount, readTable, planSync, inboxRecordId, matchLocation, completeHeader, viewFormula })`);
 
 const TODAY = '2026-11-10';
 const NOW = '2026-11-10T22:00:00.000Z';
@@ -214,6 +214,43 @@ test('locations sync like records, including soft deletes', () => {
   const p = plan({ locations: [{ id: 'L1', name: 'Old bar', miles: 5, deleted: false, updatedAt: '2026-11-01' }],
     remote: { locations: [header, toRow(header, gone)] } });
   assert.deepEqual(p.localLocations.map(l => [l.id, l.deleted]), [['L1', true]]);
+});
+
+test('Inbox types: unpaid rehearsal and expense keep their type; a paid rehearsal becomes income', () => {
+  const p = plan({ remote: { inbox: [inboxHeader,
+    inboxRow({ added: '1', desc: 'H2O rehearsal', type: 'rehearsal', start: '19:00', end: '22:00', location: 'Church' }),
+    inboxRow({ added: '2', desc: 'Rubixx rehearsal (paid)', type: 'rehearsal', pay: 50 }),
+    inboxRow({ added: '3', desc: 'Keyboard strings', type: 'expense', pay: '$42.50' }),
+  ] } });
+  assert.deepEqual(p.localRecs.map(r => [r.desc, r.type, r.amount]),
+    [['H2O rehearsal', 'rehearsal', 0], ['Rubixx rehearsal (paid)', 'income', 50], ['Keyboard strings', 'expense', 42.5]]);
+});
+
+test('a record this device lacks comes down even without updatedAt (old backups)', () => {
+  const legacy = rec({ id: 'old', updatedAt: undefined });
+  const p = plan({ remote: { records: [recordHeader, toRow(recordHeader, legacy)] } });
+  assert.deepEqual(p.localRecs.map(r => r.id), ['old']);
+  // ...and a device that has it doesn't keep re-pulling or re-pushing it.
+  const again = plan({ recs: [legacy], remote: { records: [recordHeader, toRow(recordHeader, legacy)] } });
+  assert.deepEqual([again.localRecs.length, again.updates.length, again.appends.Records.length], [0, 0, 0]);
+});
+
+test('view formulas pick columns by name from the real Records header', () => {
+  const expenses = S.VIEW_TABS.find(v => v.type === 'expense');
+  assert.equal(S.viewFormula(expenses, recordHeader),
+    `=QUERY(Records!A:AW, "select A, C, E, AG, O where B = 'expense' and (AS = false or AS is null) ` +
+    `order by A desc label A 'Date', C 'Description', E 'Amount', AG 'Deductible', O 'Notes' ` +
+    `format E '$#,##0.00', AG '$#,##0.00'", 1)`);
+
+  // Someone added a column in front and the header got 'source' appended: letters follow the names.
+  const moved = S.completeHeader(['My notes', ...recordHeader.filter(h => h !== 'source')], S.RECORD_FIELDS);
+  const f = S.viewFormula(expenses, moved);
+  assert.match(f, /^=QUERY\(Records!A:AX, "select B, D, F, AH, P where C = 'expense' and \(AT = false/);
+});
+
+test('every view column is a real record field', () => {
+  const fields = new Set(S.RECORD_FIELDS.map(([k]) => k));
+  for (const v of S.VIEW_TABS) for (const [k] of v.columns) assert.ok(fields.has(k), `${v.title}: ${k}`);
 });
 
 test('inboxRecordId depends on the entry, not on where the row sits', () => {

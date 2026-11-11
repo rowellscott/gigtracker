@@ -23,6 +23,25 @@ const LOCATION_FIELDS = [
   ['name','s'], ['address','s'], ['miles','n'], ['deleted','b'], ['createdAt','s'], ['updatedAt','s'], ['id','s'],
 ];
 
+// Read-only tabs showing one record type each, filled by a QUERY over Records.
+// Columns: [field, heading, number format ('' = as stored)]. Paid rehearsals are income, so they're under Gigs.
+const MONEY = '$#,##0.00';
+const VIEW_TABS = [
+  { title: 'Gigs', type: 'income', columns: [
+    ['date','Date',''], ['desc','Description',''], ['locationName','Location',''], ['amount','Pay',MONEY],
+    ['tips','Tips',MONEY], ['hours','Hours','0.0'], ['miles','Miles','0'], ['payMethod','Pay method',''],
+    ['totalTax','Est. tax',MONEY], ['netAfterAll','Net',MONEY], ['notes','Notes',''],
+  ] },
+  { title: 'Rehearsals', type: 'rehearsal', columns: [
+    ['date','Date',''], ['desc','Description',''], ['locationName','Location',''], ['hours','Hours','0.0'],
+    ['miles','Miles','0'], ['trueCosts','Cost',MONEY], ['totalDed','Deductible',MONEY], ['notes','Notes',''],
+  ] },
+  { title: 'Expenses', type: 'expense', columns: [
+    ['date','Date',''], ['desc','Description',''], ['amount','Amount',MONEY], ['totalDed','Deductible',MONEY],
+    ['notes','Notes',''],
+  ] },
+];
+
 const DEFAULT_CFG = { federalRate: 24, stateRate: 0, irsRate: 0.725, trueCostRate: 0.50, mpg: 28 };
 const SETTINGS_KEYS = Object.keys(DEFAULT_CFG);
 
@@ -163,6 +182,30 @@ function readTable(values, fields) {
 // Last writer wins. ISO timestamps compare correctly as text; a missing one counts as oldest.
 const isNewer = (a, b) => (a?.updatedAt || '') > (b?.updatedAt || '');
 
+// A tab's header after sync: its own columns in their order, then any known field it lacks.
+function completeHeader(sheetHeader, fields) {
+  const header = [...sheetHeader];
+  for (const [k] of fields) if (!header.includes(k)) header.push(k);
+  return header;
+}
+
+// The formula for a view tab. Letters come from the real Records header, so a column someone
+// added or moved in the sheet doesn't break it.
+function viewFormula(view, recordsHeader) {
+  const col = k => columnLetter(recordsHeader.indexOf(k));
+  const cols = view.columns.filter(([k]) => recordsHeader.includes(k));
+  const formats = cols.filter(([, , fmt]) => fmt).map(([k, , fmt]) => `${col(k)} '${fmt}'`);
+  const deleted = col('deleted');
+  const query = [
+    `select ${cols.map(([k]) => col(k)).join(', ')}`,
+    `where ${col('type')} = '${view.type}' and (${deleted} = false or ${deleted} is null)`,
+    `order by ${col('date')} desc`,
+    `label ${cols.map(([k, heading]) => `${col(k)} '${heading}'`).join(', ')}`,
+    ...(formats.length ? [`format ${formats.join(', ')}`] : []),
+  ].join(' ');
+  return `=QUERY(${SYNC_TAB.records}!A:${columnLetter(recordsHeader.length - 1)}, "${query}", 1)`;
+}
+
 // Merge one machine tab: what to save locally, which rows to overwrite, which rows to add.
 function planTable(tab, fields, local, values) {
   const { header: sheetHeader, rows } = readTable(values, fields);
@@ -173,14 +216,17 @@ function planTable(tab, fields, local, values) {
     if (!remote.has(id) || isNewer(r.obj, remote.get(id).obj)) remote.set(id, r);
   }
 
-  const header = [...sheetHeader];
-  for (const [k] of fields) if (!header.includes(k)) header.push(k);
+  const header = completeHeader(sheetHeader, fields);
   const known = new Set(fields.map(([k]) => k));
   const rowFor = (item, sheetObj) =>
     header.map(h => !h ? '' : fieldToCell(known.has(h) || !sheetObj ? item[h] : (item[h] ?? sheetObj[h])));
 
   const localById = new Map(local.map(x => [x.id, x]));
-  const toLocal = [...remote.values()].filter(r => isNewer(r.obj, localById.get(r.obj.id))).map(r => r.obj);
+  // A record this device lacks always comes down, even with no updatedAt (records restored from an
+  // old backup may not have one).
+  const toLocal = [...remote.values()]
+    .filter(r => !localById.has(r.obj.id) || isNewer(r.obj, localById.get(r.obj.id)))
+    .map(r => r.obj);
 
   const updates = [];
   const appends = [];
@@ -239,6 +285,9 @@ function parseInboxRow(get, today) {
     entry[key] = parseAmount(get(key));
     if (entry[key] === null) return { error: `can't read ${label} "${get(key)}"` };
   }
+  // The app's rehearsal type is unpaid: Summary counts pay only on income records, so a paid
+  // rehearsal is income, exactly as it would be entered on the Add screen.
+  if (entry.type === 'rehearsal' && entry.pay > 0) entry.type = 'income';
   for (const [key, label] of [['start','Start'], ['end','End']]) {
     entry[key] = parseTime(get(key));
     if (entry[key] === null) return { error: `can't read ${label} "${get(key)}" (use 21:00 or 9pm)` };
