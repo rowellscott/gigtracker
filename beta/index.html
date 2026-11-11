@@ -391,9 +391,7 @@ function calc(fm, s) {
 
   let seTax = 0, incomeTax = 0;
   if (fm.type === 'income' && totalIncome > 0) {
-    const netSE = Math.max(0, taxableIncome - totalDed);
-    seTax       = netSE * 0.9235 * 0.153;   // IRS SE formula
-    incomeTax   = Math.max(0, netSE - seTax * 0.5) * combRate;
+    ({seTax, incomeTax} = taxOnProfit(Math.max(0, taxableIncome - totalDed), combRate));
   }
 
   const totalTax    = seTax + incomeTax;
@@ -404,6 +402,23 @@ function calc(fm, s) {
   return {hours, fuelCost, trueCostMiles, irsDed, dedMeals, totalDed, taxSavings,
     trueCosts, seTax, incomeTax, totalTax, netAfterAll,
     grossHourly, trueHourly, toll, meal, oth, room, tips, miles, totalIncome, base};
+}
+
+// SE tax and income tax on a net self-employment profit — one formula for a gig and for the year.
+function taxOnProfit(netSE, combRate) {
+  const seTax = netSE * 0.9235 * 0.153;   // IRS SE formula
+  return {seTax, incomeTax: Math.max(0, netSE - seTax * 0.5) * combRate};
+}
+
+// The year's tax on the year's totals: income minus every deduction (gig costs, rehearsal
+// mileage, expenses). Adding up each gig's own estimate only ever subtracted that gig's costs,
+// so rehearsals and stand-alone expenses never lowered it.
+function estimateYearTax(records, s) {
+  const combRate = ((parseFloat(s.federalRate) || 24) + (parseFloat(s.stateRate) || 0)) / 100;
+  const taxable = records.filter(r => r.type === 'income')
+    .reduce((sum, r) => sum + (r.amount || 0) + (r.tipsInTax !== false ? r.tips || 0 : 0), 0);
+  const deductions = records.reduce((sum, r) => sum + (r.totalDed || 0), 0);
+  return taxOnProfit(Math.max(0, taxable - deductions), combRate);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -857,8 +872,7 @@ async function renderSummary() {
   const expCosts = sum(expR, 'amount');
   const allCosts = gigCosts + rehCosts + expCosts;
   const totalDed = sum(yR, 'totalDed');
-  const seTax    = sum(iR, 'seTax');
-  const incTax   = sum(iR, 'incomeTax');
+  const {seTax, incomeTax: incTax} = estimateYearTax(yR, cfg);
   const taxSav   = sum(yR, 'taxSavings');
   const miles    = sum(yR, 'miles');
   const gigHrs   = sum(iR, 'hours');
