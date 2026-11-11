@@ -18,6 +18,7 @@ const RECORD_FIELDS = [
   ['taxSavings','n'], ['trueCosts','n'], ['seTax','n'], ['incomeTax','n'], ['totalTax','n'],
   ['trueHourly','n'], ['grossHourly','n'], ['toll','n'], ['meal','n'], ['oth','n'], ['room','n'],
   ['deleted','b'], ['source','s'], ['createdAt','s'], ['updatedAt','s'], ['id','s'],
+  ['deductPct','n'],
 ];
 const LOCATION_FIELDS = [
   ['name','s'], ['address','s'], ['miles','n'], ['deleted','b'], ['createdAt','s'], ['updatedAt','s'], ['id','s'],
@@ -49,7 +50,7 @@ const SETTINGS_KEYS = Object.keys(DEFAULT_CFG);
 const INBOX_COLUMNS = [
   ['added','Added'], ['date','Date'], ['desc','Description'], ['type','Type'], ['pay','Pay'],
   ['tips','Tips'], ['start','Start'], ['end','End'], ['location','Location'], ['miles','Miles'],
-  ['payMethod','Pay Method'], ['notes','Notes'], ['imported','Imported'],
+  ['payMethod','Pay Method'], ['notes','Notes'], ['imported','Imported'], ['deductPct','Deductible %'],
 ];
 // A Map, not an object: a Type cell saying "constructor" must not find Object.prototype.
 const INBOX_TYPES = new Map([
@@ -136,6 +137,13 @@ function parseAmount(v) {
   if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? v : null;
   const s = String(v).trim().replace(/[$,\s]/g, '');
   return /^\d+(\.\d+)?$/.test(s) ? parseFloat(s) : null;
+}
+
+// '' when empty, null when unreadable or outside 0–100. Accepts 50, "50%", " 50 % ".
+function parsePercent(v) {
+  if (isBlank(v)) return '';
+  const n = typeof v === 'number' ? v : parseAmount(String(v).replace(/%\s*$/, ''));
+  return typeof n === 'number' && n >= 0 && n <= 100 ? n : null;
 }
 
 // A machine-tab cell → the value the app stores. Records are written RAW so they normally come
@@ -285,6 +293,8 @@ function parseInboxRow(get, today) {
     entry[key] = parseAmount(get(key));
     if (entry[key] === null) return { error: `can't read ${label} "${get(key)}"` };
   }
+  entry.deductPct = parsePercent(get('deductPct'));
+  if (entry.deductPct === null) return { error: `can't read Deductible % "${get('deductPct')}" (use 0 to 100)` };
   // The app's rehearsal type is unpaid: Summary counts pay only on income records, so a paid
   // rehearsal is income, exactly as it would be entered on the Add screen.
   if (entry.type === 'rehearsal' && entry.pay > 0) entry.type = 'income';
@@ -313,6 +323,14 @@ const normName = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 function matchLocation(name, locations) {
   const n = normName(name);
   return n ? locations.find(l => !l.deleted && normName(l.name) === n) || null : null;
+}
+
+// An Inbox made by an older version lacks newer columns: add their headings after its last one.
+function missingInboxColumns(headerRow) {
+  const have = (headerRow || []).map(h => String(h ?? '').trim().toLowerCase());
+  if (!have.length) return [];
+  const missing = INBOX_COLUMNS.map(([, label]) => label).filter(label => !have.includes(label.toLowerCase()));
+  return missing.length ? [{ range: `${SYNC_TAB.inbox}!${columnLetter(have.length)}1`, values: [missing] }] : [];
 }
 
 function readInbox(values) {
@@ -345,6 +363,7 @@ function planSync({ local, remote, today, now, buildRecord }) {
   const imported = [];
   const inboxMarks = [];
   const inbox = readInbox(remote.inbox);
+  const inboxHeaderFix = missingInboxColumns(remote.inbox[0]);
   if (remote.inbox.length && !('desc' in inbox.col && 'imported' in inbox.col)) {
     warnings.push('Inbox tab has no "Description" or "Imported" column, so it was skipped');
   } else {
@@ -370,7 +389,7 @@ function planSync({ local, remote, today, now, buildRecord }) {
     localLocations: locs.toLocal,
     cfg: settings.cfg,
     cfgUpdatedAt: settings.cfgUpdatedAt,
-    updates: [...settings.updates, ...locs.updates, ...recs.updates, ...inboxMarks],
+    updates: [...settings.updates, ...locs.updates, ...recs.updates, ...inboxHeaderFix, ...inboxMarks],
     appends: { [SYNC_TAB.records]: recs.appends, [SYNC_TAB.locations]: locs.appends },
     counts: {
       imported: imported.length,
