@@ -34,26 +34,61 @@ promotes is the actual app logic in `index.html`.
 When a beta build has been tried and is good to ship:
 
 1. Copy `beta/index.html` → `index.html` (full replace — this is where all
-   the real logic lives).
-2. In root `sw.js`, bump `CACHE` by one (e.g. `gigtracker-v4` →
-   `gigtracker-v5`) so already-installed phones actually pick up the update.
+   the real logic lives), then **undo the beta-only edits** listed under
+   "Refreshing beta" below. Skipping this would point production at the
+   empty beta database.
+2. Copy `beta/sync.js` → `sync.js`.
+3. In root `sw.js`, bump `CACHE` by one (e.g. `gigtracker-v7` →
+   `gigtracker-v8`) so already-installed phones actually pick up the update,
+   and bring over beta's other `sw.js` changes (today: `./sync.js` in
+   `SHELL`, and the fetch handler skipping non-GET and cross-origin requests,
+   so Google sign-in and Sheets reads are never served from cache).
    Do **not** touch root `manifest.json` — its identity fields must stay
    stable forever; that's what keeps the real home-screen icon working
    without a reinstall.
-3. Commit and push `index.html` + `sw.js`.
+4. Commit and push `index.html` + `sync.js` + `sw.js`.
+5. The first production sync creates the "GigTracker Data" sheet. Put its id
+   in the `gig-log` Claude skill (`scotts-dashboard/tools/claude-skills/gig-log/`)
+   in place of the BETA sheet's id, and re-upload the skill.
 
 That's it — ask me to "promote beta" and I'll do the above.
 
 ## Refreshing beta from production
 
 To start a new beta round from what's currently live, copy root's
-`index.html`, `icon-192.png`, `icon-512.png` into `beta/` and re-apply the
-three beta-only edits in `beta/index.html`:
+`index.html`, `sync.js` (once promoted), `icon-192.png`, `icon-512.png` into
+`beta/` and re-apply the three beta-only edits in `beta/index.html`:
 - `<title>`, the `apple-mobile-web-app-title` meta, and the topbar title →
   "GigTracker BETA" / 🧪
 - `theme-color` meta → `#92400e`
-- the `indexedDB.open(...)` call → `'GigTrackerDB_beta'` (keep the DB
-  version number in sync with whatever production is using)
+- the `DB_NAME` constant → `'GigTrackerDB_beta'` (keep the version number in
+  the `indexedDB.open(...)` call in sync with production). The sync sheet
+  name follows `DB_NAME`, so beta always syncs to "GigTracker Data (BETA)"
+  and can never touch the real sheet.
 
 `beta/manifest.json` and `beta/sw.js` don't need touching unless production's
 own manifest fields or SW logic changed.
+
+## Google Sheet sync (beta, 2026-11)
+
+Settings → **Connect Google Sheet** keeps records in a Google Sheet the app
+creates in your Drive ("GigTracker Data", or "GigTracker Data (BETA)" from
+`/beta/`). Every device that connects syncs against it, and Claude adds gigs
+by appending a row to its **Inbox** tab (skill: `gig-log`).
+
+- Tabs: `Inbox` (people and Claude write here; GigTracker fills `Imported`
+  with the record id), `Records`, `Locations`, `Settings` (GigTracker owns
+  these; edit records in the app, not in the sheet).
+- Merge: newest `updatedAt` wins per record; deletes are kept as
+  `deleted = TRUE` so they reach every device. Inbox rows get an id derived
+  from their content, so importing on two devices still makes one record.
+- Sync runs on Connect, ⟳, ~3 s after any edit, and on returning to the app,
+  while the Google sign-in (1 hour) is fresh. Otherwise ⟳ turns amber and a
+  tap signs in again.
+- Google side: Cloud project `scotts-dashboard`, OAuth client "GigTracker
+  web" (origins `https://rowellscott.github.io`, `http://localhost:5174`),
+  consent screen in Testing with rowell.scott@gmail.com as the test user.
+  Scope `drive.file`: the app can only open the sheet it created.
+- Logic lives in `sync.js` (no DOM/network) and is tested with
+  `node --test test/*.test.mjs`. Local try-out: `python3 -m http.server 5174`
+  from the repo root, then http://localhost:5174/beta/.
