@@ -340,7 +340,7 @@ function emptyForm() {
     hasOther:false, otherDesc:'', otherCost:'',
     hasRoom:false,  roomCost:'',
     hasTips:false,  tipsAmount:'', tipsInTax:true,
-    miles:'', gasPrice:'',
+    miles:'', gasPrice:'', deductPct:'',
   };
 }
 function todayStr() { return localDateStr(); }
@@ -375,12 +375,13 @@ function calc(fm, s) {
   // (It used to be left out of deductions, so Summary's Schedule C profit came out too high.)
   const isExpense     = fm.type === 'expense';
   const expenseAmt    = isExpense ? base : 0;
+  const expenseDed    = expenseAmt * deductibleShare(fm.deductPct);
 
   const fuelCost      = (miles > 0 && mpg > 0) ? (miles/mpg)*gasP : 0;
   const trueCostMiles = miles * trueR;
   const irsDed        = miles * irsR;
   const dedMeals      = meal * 0.5;                    // 50% deductible
-  const totalDed      = irsDed + toll + dedMeals + oth + room + expenseAmt;
+  const totalDed      = irsDed + toll + dedMeals + oth + room + expenseDed;
   const combRate      = (fedR + stR) / 100;
   const trueCosts     = trueCostMiles + toll + meal + oth + room + expenseAmt;
   const taxSavings    = totalDed * combRate;
@@ -402,6 +403,12 @@ function calc(fm, s) {
   return {hours, fuelCost, trueCostMiles, irsDed, dedMeals, totalDed, taxSavings,
     trueCosts, seTax, incomeTax, totalTax, netAfterAll,
     grossHourly, trueHourly, toll, meal, oth, room, tips, miles, totalIncome, base};
+}
+
+// '' (never set) means fully deductible; anything else is clamped to 0–100%.
+function deductibleShare(pct) {
+  const n = parseFloat(pct);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) / 100 : 1;
 }
 
 // SE tax and income tax on a net self-employment profit — one formula for a gig and for the year.
@@ -501,6 +508,11 @@ async function renderAdd() {
     ${(isI || isE) ? `
       <label>${isI ? 'Amount received ($)' : 'Amount ($)'}</label>
       <input type="number" inputmode="decimal" value="${esc(f.amount)}" placeholder="0.00" step="0.01" oninput="f.amount=this.value;upPrev()">
+    ` : ''}
+    ${isE ? `
+      <label>Tax deductible (%)</label>
+      <input type="number" inputmode="numeric" value="${esc(f.deductPct)}" placeholder="100" min="0" max="100" step="1" oninput="f.deductPct=this.value;upPrev()">
+      <p class="note">Less than 100 for things only partly used for gigs, e.g. a costume also worn off stage.</p>
     ` : ''}
 
     <div class="sep"></div><div class="sec">Location</div>
@@ -798,6 +810,7 @@ function cardHTML(r) {
       ${(r.room||0)>0 ? `<div class="drow"><span class="dl">Room rental (100% ded.)</span><span class="dv val-r">${c$(r.room)}</span></div>` : ''}
       ${(r.oth||0)>0  ? `<div class="drow"><span class="dl">Other: ${esc(r.otherDesc||'misc')}</span><span class="dv val-r">${c$(r.oth)}</span></div>` : ''}
       <div class="drow"><span class="dl">Total costs</span><span class="dv val-r">${c$(r.trueCosts)}</span></div>
+      ${r.type === 'expense' ? `<div class="drow"><span class="dl">Tax deductible${(r.deductPct ?? 100) < 100 ? ` (${r.deductPct}%)` : ''}</span><span class="dv val-g">${c$(r.totalDed||0)}</span></div>` : ''}
     ` : ''}
     ${isI ? `
       <div class="dsec">Taxes (estimated)</div>
@@ -1312,6 +1325,7 @@ function formFromRecord(rec) {
     hasTips:   !!rec.hasTips,  tipsAmount:rec.tipsAmount!= null ? String(rec.tipsAmount): '', tipsInTax: rec.tipsInTax !== false,
     miles:     rec.miles    != null ? String(rec.miles)    : '',
     gasPrice:  rec.gasPrice != null ? String(rec.gasPrice) : '',
+    deductPct: rec.deductPct != null ? String(rec.deductPct) : '',
   };
 }
 
@@ -1354,6 +1368,7 @@ function recordFromForm(fm, settings) {
     hasTips:   fm.hasTips,   tipsAmount:fm.hasTips  ? parseFloat(fm.tipsAmount)|| 0 : 0, tipsInTax: fm.tipsInTax !== false,
     miles:     parseFloat(fm.miles)    || 0,
     gasPrice:  parseFloat(fm.gasPrice) || 0,
+    deductPct: fm.type === 'expense' ? deductibleShare(fm.deductPct) * 100 : undefined,
     // Calculated fields stored alongside raw data
     hours:         p.hours,
     fuelCost:      p.fuelCost,
@@ -1389,6 +1404,7 @@ function inboxToRecord(entry, loc, settings) {
     locationName: loc ? loc.name : entry.location,
     address: loc ? loc.address || '' : '',
     miles: entry.miles !== '' ? String(entry.miles) : loc ? String(loc.miles || '') : '',
+    deductPct: entry.deductPct === '' ? '' : String(entry.deductPct),
   };
   if (entry.tips > 0) { fm.hasTips = true; fm.tipsAmount = String(entry.tips); }
   return recordFromForm(fm, settings);

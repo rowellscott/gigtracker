@@ -30,6 +30,7 @@ const buildRecord = (entry, loc, cfg) => ({
   hasTips: entry.tips > 0, tipsAmount: entry.tips === '' ? 0 : entry.tips,
   start: entry.start, end: entry.end, locationName: loc ? loc.name : entry.location,
   miles: entry.miles !== '' ? entry.miles : loc ? loc.miles : 0, mpgUsed: cfg.mpg, deleted: false,
+  deductPct: entry.deductPct,
 });
 
 function plan({ recs = [], locations = [], cfg = S.DEFAULT_CFG, cfgUpdatedAt = null, remote = {} } = {}) {
@@ -238,19 +239,37 @@ test('a record this device lacks comes down even without updatedAt (old backups)
 test('view formulas pick columns by name from the real Records header', () => {
   const expenses = S.VIEW_TABS.find(v => v.type === 'expense');
   assert.equal(S.viewFormula(expenses, recordHeader),
-    `=QUERY(Records!A:AW, "select A, C, E, AG, O where B = 'expense' and (AS = false or AS is null) ` +
+    `=QUERY(Records!A:AX, "select A, C, E, AG, O where B = 'expense' and (AS = false or AS is null) ` +
     `order by A desc label A 'Date', C 'Description', E 'Amount', AG 'Deductible', O 'Notes' ` +
     `format E '$#,##0.00', AG '$#,##0.00'", 1)`);
 
   // Someone added a column in front and the header got 'source' appended: letters follow the names.
   const moved = S.completeHeader(['My notes', ...recordHeader.filter(h => h !== 'source')], S.RECORD_FIELDS);
   const f = S.viewFormula(expenses, moved);
-  assert.match(f, /^=QUERY\(Records!A:AX, "select B, D, F, AH, P where C = 'expense' and \(AT = false/);
+  assert.match(f, /^=QUERY\(Records!A:AY, "select B, D, F, AH, P where C = 'expense' and \(AT = false/);
 });
 
 test('every view column is a real record field', () => {
   const fields = new Set(S.RECORD_FIELDS.map(([k]) => k));
   for (const v of S.VIEW_TABS) for (const [k] of v.columns) assert.ok(fields.has(k), `${v.title}: ${k}`);
+});
+
+test('Inbox "Deductible %" reads 50, "50%" and blank, and rejects values outside 0–100', () => {
+  const p = plan({ remote: { inbox: [inboxHeader,
+    inboxRow({ added: '1', desc: 'Deadpool costume', type: 'expense', pay: 80, deductPct: '50%' }),
+    inboxRow({ added: '2', desc: 'Tires', type: 'expense', pay: 400, deductPct: 0 }),
+    inboxRow({ added: '3', desc: 'Strings', type: 'expense', pay: 12 }),
+    inboxRow({ added: '4', desc: 'Typo', type: 'expense', pay: 5, deductPct: 150 }),
+  ] } });
+  assert.deepEqual(p.localRecs.map(r => [r.desc, r.deductPct]), [['Deadpool costume', 50], ['Tires', 0], ['Strings', '']]);
+  assert.deepEqual(p.warnings, ['Inbox row 5: can\'t read Deductible % "150" (use 0 to 100)']);
+});
+
+test('an Inbox made before "Deductible %" existed gets the heading added after its last column', () => {
+  const oldInbox = inboxHeader.filter(h => h !== 'Deductible %');
+  const p = plan({ remote: { inbox: [oldInbox] } });
+  assert.deepEqual(p.updates, [{ range: 'Inbox!N1', values: [['Deductible %']] }]);
+  assert.deepEqual(plan().updates, []);
 });
 
 test('inboxRecordId depends on the entry, not on where the row sits', () => {
